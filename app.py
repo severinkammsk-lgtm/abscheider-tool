@@ -1,102 +1,111 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Nenngrößenberechnung DIN 1999", layout="centered")
+st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-st.title("📋 Intelligente Bemessung (DIN 1999-100)")
-
-# --- ABSCHNITT 1: ANLAGEN-KONFIGURATION ---
-st.header("1. Anlagen-Konfiguration")
-anlagentyp = st.selectbox("Anlagen-Zusammenstellung", ["S-II-P", "S-I-P", "S-II-I-P"], 
-                          help="S=Schlammfang, I/II=Abscheiderklasse, P=Probenahmeschacht")
-
-# --- ABSCHNITT 2: REGENABFLUSS (QR) ---
-st.header("2. Regenabfluss (Qr)")
-r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0)
-
-col_a, col_b = st.columns(2)
-with col_a:
-    a_tank = st.number_input("Tankfläche [m²]", value=0.0)
-    a_hof = st.number_input("Hof-/ Freifläche [m²]", value=0.0)
-    a_wasch = st.number_input("Waschplatz / Waschhalle [m²]", value=0.0)
-with col_b:
-    a_lager = st.number_input("Lager-/Abstellfläche [m²]", value=0.0)
-    a_dach = st.number_input("Schrägdach [m²]", value=0.0)
-
-qr = (r_spende * (a_tank + a_hof + a_wasch + a_lager + a_dach)) / 10000
-st.subheader(f"Summe Qr = {qr:.2f} l/s")
+# --- KUNDENDATEN ---
+st.title("📋 Abscheider-Bemessung nach DIN 1999-100")
+st.subheader("Kundendaten")
+col_k1, col_k2 = st.columns(2)
+with col_k1:
+    kunden_name = st.text_input("Name des Kunden / Bauvorhaben")
+with col_k2:
+    kunden_adresse = st.text_area("Adresse / Standort", height=68)
 
 st.divider()
 
-# --- ABSCHNITT 3: SCHMUTZWASSER (QS) ---
-st.header("3. Schmutzwasser (Qs)")
+# --- ABSCHNITT 1: REGENABFLUSS (QR) ---
+st.header("1. Regenabfluss (Qr)")
+st.info("Hinweis: Geben Sie nur Flächen an, auf die Regen fallen kann (Flächen außerhalb einer Überdachung).")
 
+r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0)
+
+# Funktion für die Zeilen-Eingabe (Länge x Breite)
+def flaeche_zeile(label, wind_faktor=1.0):
+    st.markdown(f"**{label}**")
+    c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
+    with c2:
+        l = st.number_input("Länge [m]", key=f"l_{label}", min_value=0.0, step=0.5)
+    with c3:
+        b = st.number_input("Breite [m]", key=f"b_{label}", min_value=0.0, step=0.5)
+    ergebnis = l * b * wind_faktor
+    with c4:
+        st.markdown(f"<div style='padding-top:35px'>= {ergebnis:.2f} m²</div>", unsafe_allow_html=True)
+    return ergebnis
+
+# Flächen-Eingaben
+a_tank = flaeche_zeile("Tankfläche (unüberdacht)")
+a_hof = flaeche_zeile("Hof- / Freifläche")
+a_wasch = flaeche_zeile("Waschplatz (außen)")
+a_lager = flaeche_zeile("Lager- / Abstellfläche")
+
+# Schlagregen / Wind-Faktor (Berücksichtigung vertikaler Flächen nach DIN)
+st.write("---")
+st.write("**Schlagregen-Berücksichtigung (Wind)**")
+st.caption("Vertikale Wandflächen, die vom Regen getroffen werden, werden i.d.R. zu 50% (Faktor 0,5) angerechnet.")
+a_wand = flaeche_zeile("Vertikale Wandflächen (Schlagregen)", wind_faktor=0.5)
+
+total_area = a_tank + a_hof + a_wasch + a_lager + a_wand
+qr = (r_spende * total_area) / 10000
+
+st.success(f"Gesamtfläche: {total_area:.2f} m² | Summe Qr = {qr:.2f} l/s")
+st.divider()
+
+# --- ABSCHNITT 2: SCHMUTZWASSER (QS) ---
+st.header("2. Schmutzwasser (Qs)")
 col1, col2 = st.columns(2)
 with col1:
-    dn15 = st.number_input("Ventil DN 15 (1/2\") [Stück]", value=0) * 0.5
-    dn20 = st.number_input("Ventil DN 20 (3/4\") [Stück]", value=0) * 1.0
-    dn25 = st.number_input("Ventil DN 25 (1\") [Stück]", value=0) * 1.7
-
+    dn15 = st.number_input("Ventil DN 15 (1/2\")", value=0) * 0.5
+    dn20 = st.number_input("Ventil DN 20 (3/4\")", value=0) * 1.0
+    dn25 = st.number_input("Ventil DN 25 (1\")", value=0) * 1.7
 with col2:
-    portal_vorhanden = st.checkbox("Portalwaschanlage vorhanden")
-    anzahl_hd = st.number_input("Anzahl HD-Reiniger", min_value=0, value=0)
+    portal = st.checkbox("Portalwaschanlage vorhanden")
+    anz_hd = st.number_input("Anzahl HD-Reiniger", min_value=0, value=0)
 
-# Qs Logik
-qs_portal = 2.0 if portal_vorhanden else 0.0
-if portal_vorhanden:
-    qs_hd = anzahl_hd * 1.0
+# Logik für Portal und HD
+qs_portal = 2.0 if portal else 0.0
+if portal:
+    qs_hd = anz_hd * 1.0
 else:
-    qs_hd = 2.0 + (anzahl_hd - 1) * 1.0 if anzahl_hd > 0 else 0.0
+    qs_hd = 2.0 + (anz_hd - 1) * 1.0 if anz_hd > 0 else 0.0
 
 qs = dn15 + dn20 + dn25 + qs_portal + qs_hd
 st.subheader(f"Summe Qs = {qs:.2f} l/s")
-
 st.divider()
 
-# --- ABSCHNITT 4: AUTOMATISCHE FAKTOREN ---
-st.header("4. Faktoren (Auto-Modus)")
+# --- ABSCHNITT 3: AUTOMATISCHE FAKTOREN ---
+st.header("3. Faktoren & Anlage")
+anlagentyp = st.selectbox("Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
 
-# 4.1 Erschwernisfaktor fx
-# Regel: 2.0 wenn Waschplatz, Waschhalle, Portal oder HD vorhanden. Sonst 1.0.
-wash_active = a_wasch > 0 or portal_vorhanden or anzahl_hd > 0
-fx = 2.0 if wash_active else 1.0
-st.write(f"**Erschwernisfaktor ($f_x$): {fx}** ({'Waschbetrieb erkannt' if fx==2.0 else 'Nur Tankbetrieb'})")
+# Automatisches fx: 2.0 wenn Waschbetrieb (Fläche, Portal oder HD vorhanden)
+fx = 2.0 if (a_wasch > 0 or portal or anz_hd > 0) else 1.0
 
-# 4.2 Dichtefaktor fd nach deiner Tabelle
-dichte_bereich = st.selectbox("Dichte der Leichtflüssigkeit (g/cm³)", 
-                              ["bis 0,85", "über 0,85 bis 0,90", "über 0,90 bis 0,95"])
+# Dichte und FAME
+dichte = st.selectbox("Dichte (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
+fd_map = {"bis 0,85": {"S-II-P": 1.0, "S-I-P": 1.0, "S-II-I-P": 1.0},
+          "0,85 - 0,90": {"S-II-P": 2.0, "S-I-P": 1.5, "S-II-I-P": 1.0},
+          "0,90 - 0,95": {"S-II-P": 3.0, "S-I-P": 2.0, "S-II-I-P": 1.0}}
+fd = fd_map[dichte][anlagentyp]
 
-fd_map = {
-    "bis 0,85": {"S-II-P": 1.0, "S-I-P": 1.0, "S-II-I-P": 1.0},
-    "über 0,85 bis 0,90": {"S-II-P": 2.0, "S-I-P": 1.5, "S-II-I-P": 1.0},
-    "über 0,90 bis 0,95": {"S-II-P": 3.0, "S-I-P": 2.0, "S-II-I-P": 1.0}
-}
-fd = fd_map[dichte_bereich][anlagentyp]
-st.write(f"**Dichtefaktor ($f_d$): {fd}** (für {anlagentyp})")
+fame = st.selectbox("FAME-Anteil (%)", ["bis 5 %", "5 - 10 %", "über 10 %"])
+ff_map = {"bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0},
+          "5 - 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0},
+          "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}}
+ff = ff_map[fame][anlagentyp]
 
-# 4.3 FAME-Faktor ff nach deiner Tabelle
-fame_bereich = st.selectbox("FAME-Anteil (%)", 
-                             ["bis 5 %", "über 5 % bis 10 %", "über 10 %"])
-
-ff_map = {
-    "bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0},
-    "über 5 % bis 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0},
-    "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}
-}
-ff = ff_map[fame_bereich][anlagentyp]
-st.write(f"**FAME-Faktor ($f_f$): {ff}** (für {anlagentyp})")
-
+st.write(f"Faktoren: fx={fx} | fd={fd} | ff={ff}")
 st.divider()
 
-# --- ABSCHNITT 5: ERGEBNISSE ---
-st.header("5. Gesamtergebnis")
+# --- ABSCHNITT 4: ERGEBNISSE ---
+st.header("4. Gesamtergebnis")
+ns = (qr + fx * qs) * fd * ff
+st.success(f"### Erforderliche Nenngröße: NS {ns:.2f}")
 
-ns_berechnet = (qr + fx * qs) * fd * ff
-st.success(f"### Erforderliche Nenngröße (NS) = {ns_berechnet:.2f}")
-
-# Schlammfang (Genaue Berechnung)
-schlamm_wahl = st.radio("Schlammfang-Faktor", ["100x NS", "200x NS", "300x NS"], index=1)
-f_sf = 100 if "100" in schlamm_wahl else 300 if "300" in schlamm_wahl else 200
-v_sf = f_sf * ns_berechnet
-
+f_sf = st.radio("Schlammfangfaktor", [100, 200, 300], index=1, horizontal=True)
+v_sf = f_sf * ns
 st.metric("Schlammfangvolumen (V_SF)", f"{v_sf:.2f} Liter")
+
+# Export
+if st.button("Protokoll-Daten exportieren"):
+    df = pd.DataFrame([{"Kunde": kunden_name, "Adresse": kunden_adresse, "NS": ns, "V_SF": v_sf}])
+    st.download_button("Download CSV", df.to_csv(index=False), "Abscheider_Protokoll.csv")
