@@ -127,6 +127,11 @@ st.divider()
 # --- ABSCHNITT 4: ERGEBNIS ---
 st.header("4. Endergebnis")
 ns_ergebnis = (qr + fx * qs) * fd * ff
+
+# Anzeige der Rechenformel für deine Dokumentation
+st.latex(rf"NS = (Q_r + f_x \cdot Q_s) \cdot f_d \cdot f_f")
+st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns_ergebnis:.2f}")
+
 st.success(f"### Erforderliche Nenngröße: NS {ns_ergebnis:.2f}")
 
 # Schlammfang (Genaue Berechnung)
