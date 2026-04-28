@@ -8,7 +8,7 @@ import math
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS: Kompakte Ansicht und fette Hervorhebungen
+# 2. CSS: Optimierung für fette Ergebnisse und saubere Eingabe
 st.markdown("""
     <style>
     input[::-webkit-outer-spin-button],
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Hilfsfunktion zur Ventilberechnung nach DIN 1999-100 (Gleichzeitigkeit)
+# Hilfsfunktion zur Ventilberechnung nach DIN 1999-100 (Tabelle 1)
 def calc_valve_flow(count, values):
     res = 0.0
     for i in range(count):
@@ -77,7 +77,8 @@ def schlagregen_zeile(label, key_suffix):
         st.markdown(f"<div style='padding-top:35px'>= <b>{res:.2f} m²</b></div>", unsafe_allow_html=True)
     return res
 
-a_tank = flaeche_zeile("Tankfläche", "tank", info="Hinweis: Nur unüberdachte Bodenfläche messen.")
+# Angepasst: Tankfläche -> Tankstelle mit PKW-Wäsche von Hand 
+a_tank = flaeche_zeile("Tankstelle mit PKW-Wäsche von Hand", "tank", info="Hinweis: Nur unüberdachte Bodenfläche messen.")
 a_hof = flaeche_zeile("Hof- / Freifläche", "hof")
 a_wasch = flaeche_zeile("Waschplatz (außen)", "wasch")
 a_lager = flaeche_zeile("Lager- / Abstellfläche", "lager")
@@ -85,7 +86,7 @@ a_schlag = schlagregen_zeile("Schlagregen (Wandfläche)", "schlag")
 
 total_area = a_tank + a_hof + a_wasch + a_lager + a_schlag
 qr_raw = (r_spende * total_area) / 10000
-# Immer aufrunden auf 2 Dezimalstellen
+# Immer aufrunden auf 2 Dezimalstellen 
 qr = math.ceil(qr_raw * 100) / 100 
 st.info(f"Gesamtfläche: {total_area:.2f} m² | **Qr = {qr:.2f} l/s**")
 
@@ -99,10 +100,9 @@ with col_s1:
     v20_c = st.number_input("Anzahl Ventile DN 20", min_value=0, step=1)
     v25_c = st.number_input("Anzahl Ventile DN 25", min_value=0, step=1)
 
-qs1_15 = calc_valve_flow(v15_c, [0.5, 0.5, 0.35, 0.25, 0.1])
-qs1_20 = calc_valve_flow(v20_c, [1.0, 1.0, 0.7, 0.5, 0.2])
-qs1_25 = calc_valve_flow(v25_c, [1.7, 1.7, 1.2, 0.85, 0.3])
-qs1_total = qs1_15 + qs1_20 + qs1_25
+qs1_total = calc_valve_flow(v15_c, [0.5, 0.5, 0.35, 0.25, 0.1]) + \
+            calc_valve_flow(v20_c, [1.0, 1.0, 0.7, 0.5, 0.2]) + \
+            calc_valve_flow(v25_c, [1.7, 1.7, 1.2, 0.85, 0.3])
 
 with col_s2:
     wasch_typ = st.selectbox("Waschanlage", ["Keine", "Portalwaschanlage", "Waschstraße"])
@@ -110,6 +110,7 @@ with col_s2:
 
 is_wash = wasch_typ in ["Portalwaschanlage", "Waschstraße"]
 qs_w = 2.0 if is_wash else 0.0
+# HD-Logik: 2,0 l/s wenn keine Waschanlage, sonst 1,0 l/s 
 if anz_hd > 0:
     qs_hd = anz_hd * 1.0 if is_wash else (2.0 + (anz_hd - 1) * 1.0)
 else:
@@ -136,12 +137,12 @@ st.divider()
 # --- 4. ERGEBNIS NS ---
 st.header("4. Ergebnis Nenngröße")
 ns_raw = (qr + fx * qs) * fd * ff
-# Auch das NS-Ergebnis wird immer aufrunden (2 Dezimalstellen)
+# Aufrunden auf 2 Dezimalstellen 
 ns = math.ceil(ns_raw * 100) / 100 
 standard_ns = get_next_standard_ns(ns)
 
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
-st.success(f"### Erforderliche Nenngröße: **NS {ns:.2f}** (Gewählte Standardgröße: NS {standard_ns})")
+st.success(f"### Erforderliche Nenngröße: **NS {ns:.2f}**")
 
 st.divider()
 
@@ -152,14 +153,15 @@ anfall_opt = {"Kein" + " "*15 + "0%": 0, "Gering" + " "*10 + "100%": 100, "Mitte
 selection = st.radio("Schlammanfall auswählen:", list(anfall_opt.keys()), index=0)
 sf_faktor = anfall_opt[selection]
 
-# Berechnung exakt nach den Faktoren *0, *100, *200, *300
+# Berechnung exakt nach den Faktoren *0, *100, *200, *300 
 v_final = (sf_faktor * ns) / fd if (fd > 0 and sf_faktor > 0) else 0.0
 
+# Angepasst: "Tankstellen mit PKW-Wäsche von Hand" bei Mittel 
 bew_map = {
     0: "Kondensat",
     100: "Regenauffangflächen mit geringem Schmutzanfall (z. B. Auffangtassen auf Tankfeldern)",
-    200: "Tankstellen, PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe",
-    300: "Waschplätze für Baustellenfahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände"
+    200: "Tankstellen mit PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe",
+    300: "Waschplätze für Baustellenfahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände, automatische Waschanlagen"
 }
 bew_t = bew_map[sf_faktor]
 st.info(f"**Bewertung:** {bew_t}")
@@ -174,67 +176,73 @@ def create_pdf():
     pdf.add_page()
     def txt(s): return s.encode('latin-1', 'replace').decode('latin-1')
 
-    # Schriftgröße reduziert für 1-Seiten-Layout
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 8, txt("Bemessungsprotokoll: Abscheideranlage (DIN 1999-100)"), ln=True, align='C')
-    pdf.ln(2)
+    # Header
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(31, 119, 180)
+    pdf.cell(190, 8, txt("BEMESSUNGSPROTOKOLL: ABSCHEIDERANLAGE"), ln=True, align='C')
+    pdf.set_font("Arial", '', 8)
+    pdf.set_text_color(0)
+    pdf.cell(190, 4, txt("Gemaess DIN 1999-100 / DIN EN 858-2"), ln=True, align='C')
+    pdf.ln(4)
     
-    # Projektinfo
+    # 1. Projektdaten
     pdf.set_fill_color(240, 240, 240)
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(190, 6, txt(" Projektinformationen"), ln=True, fill=True)
+    pdf.cell(190, 6, txt(" 1. Projektinformationen"), ln=True, fill=True)
     pdf.set_font("Arial", '', 8)
-    for label, val in [("Name Kunde:", kunden_name), ("Straße/Nr:", kunden_strasse), ("PLZ / Ort:", kunden_ort)]:
-        pdf.cell(40, 5, txt(label), border='B')
-        pdf.cell(150, 5, txt(f" {val if val else '---'}"), border='B', ln=True)
-    pdf.cell(40, 5, txt("Datum:"), border='B')
-    pdf.cell(150, 5, f" {datetime.now().strftime('%d.%m.%Y')}", border='B', ln=True)
-    pdf.ln(2)
+    data = [("Kunde:", kunden_name), ("Anschrift:", kunden_strasse), ("Ort:", kunden_ort), ("Datum:", datetime.now().strftime('%d.%m.%Y'))]
+    for label, val in data:
+        pdf.cell(30, 5, txt(label), border='B')
+        pdf.cell(160, 5, txt(f" {val if val else '---'}"), border='B', ln=True)
+    pdf.ln(3)
     
-    # Pos 1: Qr
+    # 2. Regenwasser
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(190, 6, txt(" 1. Regenwasser-Berechnung (Qr)"), ln=True, fill=True)
+    pdf.cell(190, 6, txt(" 2. Regenwasserabfluss (Qr)"), ln=True, fill=True)
     pdf.set_font("Arial", '', 7.5)
-    pdf.multi_cell(190, 3.5, txt(f"Regenspende i: {r_spende} l/(s*ha) gemaess DIN 1986-100. Das Ergebnis wurde aufgerundet."))
-    pdf.set_font("Arial", 'B', 8.5)
-    pdf.cell(100, 6, txt("Maximaler Regenabfluss (aufgerundet):"))
-    pdf.cell(90, 6, f"Qr = {qr:.2f} l/s", ln=True, align='R')
+    pdf.multi_cell(190, 3.5, txt(f"Regenspende: {r_spende} l/(s*ha) | Flaeche: {total_area:.2f} m2. Ergebnis aufgerundet."))
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(100, 6, txt(" Maximaler Regenabfluss (aufgerundet):"))
+    pdf.cell(90, 6, f"{qr:.2f} l/s", ln=True, align='R')
     pdf.ln(1)
 
-    # Pos 2: Qs
+    # 3. Schmutzwasser
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(190, 6, txt(" 2. Schmutzwasser-Berechnung (Qs)"), ln=True, fill=True)
-    pdf.set_font("Arial", 'B', 8.5)
-    pdf.cell(100, 6, txt("Gesamt Schmutzwasser (Qs):"))
+    pdf.cell(190, 6, txt(" 3. Schmutzwasserabfluss (Qs)"), ln=True, fill=True)
+    pdf.set_font("Arial", '', 7.5)
+    pdf.cell(100, 4, txt(f" Ventile (Tab. 1): {qs1_total:.2f} l/s | Waschanlage/HD: {qs_w+qs_hd:.2f} l/s"))
+    pdf.ln(4)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(100, 6, txt(" Gesamt-Schmutzwasserabfluss:"), border=0)
     pdf.cell(90, 6, f"{qs:.2f} l/s", ln=True, align='R')
     pdf.ln(1)
 
-    # Pos 3: Faktoren
+    # 4. Faktoren
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(190, 6, txt(" 3. Faktoren und Anlagentyp"), ln=True, fill=True)
+    pdf.cell(190, 6, txt(" 4. Bemessungsparameter"), ln=True, fill=True)
     pdf.set_font("Arial", '', 7.5)
-    pdf.multi_cell(190, 3.5, txt(f"Anlagentyp: {at} | fx={fx} | fd={fd} (Dichte {dichte}) | ff={ff} (Biodiesel {fame})."))
+    pdf.multi_cell(190, 3.5, txt(f"Anlagentyp: {at} | Erschwernisfaktor fx: {fx} | Dichtefaktor fd: {fd} | ff: {ff}"))
     pdf.ln(1)
 
-    # Pos 4: NS
+    # 5. Nenngröße
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(190, 6, txt(" 4. Ergebnis Nenngröße (NS)"), ln=True, fill=True)
+    pdf.cell(190, 6, txt(" 5. Erforderliche Nenngroesse (NS)"), ln=True, fill=True)
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(100, 8, txt(" Erforderliche Nenngröße (aufgerundet):"))
+    pdf.cell(100, 8, txt(" BERECHNETE NENNGRÖSSE (aufgerundet):"))
     pdf.cell(90, 8, f"NS {ns:.2f}", ln=True, align='R')
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(100, 6, txt(" Empfohlene Standardgröße:"))
-    pdf.cell(90, 6, f"NS {standard_ns}", ln=True, align='R')
+    pdf.cell(100, 5, txt(" Empfohlene Standard-Nenngroesse:"))
+    pdf.cell(90, 5, f"NS {standard_ns}", ln=True, align='R')
     pdf.ln(1)
 
-    # Pos 5: Schlammvolumen
+    # 6. Schlammfang
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(190, 6, txt(" 5. Schlammfangvolumen (V)"), ln=True, fill=True)
+    pdf.cell(190, 6, txt(" 6. Schlammfangvolumen (V)"), ln=True, fill=True)
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(100, 8, txt(" Erforderliches Volumen:"), border=0)
+    pdf.cell(100, 8, txt(" ERFORDERLICHES SCHLAMMVOLUMEN:"))
     pdf.cell(90, 8, f"{v_final:.2f} Liter", ln=True, align='R')
     pdf.set_font("Arial", '', 7.5)
-    pdf.multi_cell(190, 3.5, txt(f"Berechnung: (Faktor {sf_faktor}% * NS) / fd. Einstufung: {bew_t}."))
+    pdf.multi_cell(190, 3.5, txt(f"Berechnung: (Faktor {sf_faktor}% * NS) / fd | Einstufung: {bew_t}"))
     
     return pdf.output(dest='S').encode('latin-1')
 
