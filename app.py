@@ -4,24 +4,13 @@ import pandas as pd
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS-HACK: ENTFERNT + UND - BUTTONS UND OPTIMIERT DIE EINGABE
+# 2. CSS-HACK: ENTFERNT + UND - BUTTONS KOMPLETT
 st.markdown("""
     <style>
-    /* Versteckt die Pfeile in Chrome, Safari, Edge, Opera */
-    input[::-webkit-outer-spin-button],
-    input[::-webkit-inner-spin-button] {
-        -webkit-appearance: none !important;
-        margin: 0 !important;
-    }
-    /* Versteckt die Pfeile in Firefox */
-    input[type=number] {
-        -moz-appearance: textfield !important;
-    }
-    /* Zentriert den Text und optimiert die Anzeige */
-    .stNumberInput div div input {
-        text-align: center !important;
-        font-size: 20px !important;
-    }
+    input::-webkit-outer-spin-button,
+    input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
+    input[type=number] { -moz-appearance: textfield !important; }
+    .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -63,7 +52,7 @@ st.info(f"Gesamtfläche: {total_area:.2f} m² | Qr = {qr:.2f} l/s")
 
 st.divider()
 
-# --- 2. SCHMUTZWASSER (QS) ---
+# --- 2. SCHMUTZWASSER ---
 st.header("2. Schmutzwasser (Qs)")
 col_s1, col_s2 = st.columns(2)
 with col_s1:
@@ -85,7 +74,7 @@ st.divider()
 
 # --- 3. FAKTOREN ---
 st.header("3. Faktoren & Anlagentyp")
-anlagentyp = st.selectbox("Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
+anlagentyp = st.selectbox("Gewählter Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
 fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0) else 1.0
 
 dichte = st.selectbox("Dichte (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
@@ -111,26 +100,6 @@ st.header("5. Schlammfangvolumen")
 
 if is_wash:
     v_sf = 5000.0
-    st.warning("⚠️ Portalwaschanlage/Waschstraße: Festwert 5.000 Liter")
+    st.warning("⚠️ Portalwaschanlage / Waschstraße: Festwert 5.000 Liter")
 else:
-    anfall = st.radio("Erwarteter Schlammanfall:", ["Kein", "Gering", "Mittel", "Groß"], index=0)
-    
-    # Reine Berechnung ohne künstliche Mindestgrenzen
-    if anfall == "Kein":
-        v_sf = 0.0
-    elif anfall == "Gering":
-        v_sf = (100 * ns) / (fd * ff)
-    elif anfall == "Mittel":
-        v_sf = (200 * ns) / (fd * ff)
-    elif anfall == "Groß":
-        v_sf = (300 * ns) / (fd * ff)
-
-# Deckelung auf maximal 5000 Liter
-if v_sf > 5000.0:
-    v_sf = 5000.0
-
-st.metric("Berechnetes Volumen", f"{v_sf:.2f} Liter")
-st.caption("Informationen zur Bewertung:")
-st.write("- **Gering:** Regenflächen, wenig Schmutz, Auffangtassen")
-st.write("- **Mittel:** Tankstellen, PKW-Wäsche, Werkstätten, Abstellflächen")
-st.write("- **Groß:** LKW-Waschplätze, Baustellen- oder Landwirtschaftsfahrzeuge")
+    anfall = st.radio("Erwarteter Schlammanfall auswählen:", ["Kein", "
