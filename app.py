@@ -7,7 +7,7 @@ import io
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS-HACK: ENTFERNT + UND - BUTTONS UND OPTIMIERT DIE EINGABE
+# 2. CSS-HACK: Buttons entfernen & Mobile-Optimierung
 st.markdown("""
     <style>
     input::-webkit-outer-spin-button,
@@ -17,7 +17,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- KUNDENDATEN ---
+# --- PROJEKTDATEN ---
 st.title("📋 Abscheider-Bemessung (DIN 1999-100)")
 col_k1, col_k2 = st.columns(2)
 with col_k1:
@@ -111,7 +111,7 @@ st.header("5. Schlammfangvolumen")
 
 if is_wash:
     v_sf = 5000.0
-    st.warning("⚠️ Portalwaschanlage / Waschstraße: Festwert 5.000 Liter")
+    st.warning("⚠️ Waschstraße / Portalwaschanlage: **Festwert 5.000 Liter**")
 else:
     anfall = st.radio("Erwarteter Schlammanfall auswählen:", ["Kein", "Gering", "Mittel", "Groß"], index=0)
     
@@ -119,13 +119,13 @@ else:
         st.info("**Bewertung:** - Kondensat")
         v_sf = 0.0
     elif anfall == "Gering":
-        st.info("**Bewertung:** - alle Regenauffangflächen, auf denen nur geringe Mengen an Schmutz durch Straßenverkehr oder Ähnliches anfällt, z.B. Auffangtassen auf Tankfeldern und überdachten Tankstellen")
+        st.info("**Bewertung:** - alle Regenauffangflächen mit geringem Schmutzanfall (z.B. Auffangtassen, überdachte Tankstellen)")
         v_sf = (100 * ns) / (fd * ff)
     elif anfall == "Mittel":
-        st.info("**Bewertung:** - Tankstellen, PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe")
+        st.info("**Bewertung:** - Tankstellen, PKW-Wäsche von Hand, Werkstätten, Abstellflächen, Kraftwerke")
         v_sf = (200 * ns) / (fd * ff)
     elif anfall == "Groß":
-        st.info("**Bewertung:** - Waschplätze für Baustellefahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände")
+        st.info("**Bewertung:** - Waschplätze für LKW, Baumaschinen, landwirtschaftliche Maschinen")
         v_sf = (300 * ns) / (fd * ff)
 
 # Deckelung auf maximal 5000 Liter
@@ -137,40 +137,23 @@ st.metric("Berechnetes Volumen", f"{v_sf:.2f} Liter")
 st.divider()
 
 # --- PDF GENERIERUNG ---
-def create_pdf_bytes():
+def create_pdf():
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(190, 10, "Protokoll: Abscheider-Bemessung DIN 1999-100", ln=True, align='C')
     pdf.ln(10)
-    
     pdf.set_font("Arial", '', 12)
     pdf.cell(0, 10, f"Bauvorhaben: {kunden_name}", ln=True)
     pdf.cell(0, 10, f"Standort: {kunden_adresse}", ln=True)
     pdf.cell(0, 10, f"Datum: {datetime.now().strftime('%d.%m.%Y')}", ln=True)
     pdf.ln(5)
-    
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Berechnungsdaten:", ln=True)
-    pdf.set_font("Arial", '', 11)
-    pdf.cell(0, 8, f"Regenabfluss (Qr): {qr:.2f} l/s", ln=True)
-    pdf.cell(0, 8, f"Schmutzwasser (Qs): {qs:.2f} l/s", ln=True)
-    pdf.cell(0, 8, f"Faktoren: fx={fx}, fd={fd}, ff={ff}", ln=True)
-    pdf.ln(5)
-    
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, f"ERGEBNIS: NS {ns:.2f}", ln=True)
-    pdf.cell(0, 10, f"Schlammfangvolumen: {v_sf:.2f} Liter", ln=True)
-    
+    pdf.cell(0, 10, f"Ergebnis Nenngroesse: NS {ns:.2f}", ln=True)
+    pdf.cell(0, 10, f"Ergebnis Schlammfang: {v_sf:.2f} Liter", ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
 if kunden_name and kunden_adresse:
-    pdf_bytes = create_pdf_bytes()
-    st.download_button(
-        label="📄 PDF Protokoll erstellen & herunterladen",
-        data=pdf_bytes,
-        file_name=f"Bemessung_{kunden_name}.pdf",
-        mime="application/pdf"
-    )
+    pdf_data = create_pdf()
+    st.download_button(label="📄 PDF Protokoll herunterladen", data=pdf_data, file_name=f"Bemessung_{kunden_name}.pdf", mime="application/pdf")
 else:
-    st.info("Bitte Kundendaten eingeben, um das PDF zu erstellen.")
+    st.info("Geben Sie Name und Ort ein, um das PDF zu aktivieren.")
