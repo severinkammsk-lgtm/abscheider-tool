@@ -17,6 +17,19 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Hilfsfunktion für die Ventilberechnung nach Tabelle 1 
+def calculate_valve_flow(count, values):
+    if count <= 0:
+        return 0.0
+    flow = 0.0
+    for i in range(1, count + 1):
+        if i == 1: flow += values[0] # 1. Ventil
+        elif i == 2: flow += values[1] # 2. Ventil
+        elif i == 3: flow += values[2] # 3. Ventil
+        elif i == 4: flow += values[3] # 4. Ventil
+        else: flow += values[4] # 5. Ventil und jedes weitere
+    return flow
+
 # --- PROJEKTDATEN ---
 st.title("📋 Abscheider-Bemessung (DIN 1999-100)")
 col_k1, col_k2 = st.columns(2)
@@ -59,17 +72,33 @@ st.divider()
 st.header("2. Schmutzwasser (Qs)")
 col_s1, col_s2 = st.columns(2)
 with col_s1:
-    v15 = st.number_input("Anzahl Ventile DN 15 (0,5 l/s)", min_value=0)
-    v20 = st.number_input("Anzahl Ventile DN 20 (1,0 l/s)", min_value=0)
-    v25 = st.number_input("Anzahl Ventile DN 25 (1,7 l/s)", min_value=0)
+    v15_count = st.number_input("Anzahl Ventile DN 15", min_value=0, step=1)
+    v20_count = st.number_input("Anzahl Ventile DN 20", min_value=0, step=1)
+    v25_count = st.number_input("Anzahl Ventile DN 25", min_value=0, step=1)
+
+# Abflusswerte nach Tabelle 1 
+# Format: [1. Ventil, 2. Ventil, 3. Ventil, 4. Ventil, 5.+ Ventil]
+qs1_15 = calculate_valve_flow(v15_count, [0.5, 0.5, 0.35, 0.25, 0.1])
+qs1_20 = calculate_valve_flow(v20_count, [1.0, 1.0, 0.7, 0.5, 0.2])
+qs1_25 = calculate_valve_flow(v25_count, [1.7, 1.7, 1.2, 0.85, 0.3])
+qs1_total = qs1_15 + qs1_20 + qs1_25
+
 with col_s2:
     wasch_typ = st.selectbox("Waschanlage", ["Keine", "Portalwaschanlage", "Waschstraße"])
-    anz_hd = st.number_input("Anzahl HD-Reiniger", min_value=0)
+    anz_hd = st.number_input("Anzahl HD-Reiniger", min_value=0, step=1)
 
 is_wash = wasch_typ in ["Portalwaschanlage", "Waschstraße"]
-qs_w = 2.0 if is_wash else 0.0
-qs_hd = anz_hd * 1.0 if is_wash else (2.0 + (anz_hd - 1) * 1.0 if anz_hd > 0 else 0.0)
-qs = (v15 * 0.5) + (v20 * 1.0) + (v25 * 1.7) + qs_w + qs_hd
+qs_w = 2.0 if is_wash else 0.0 # 
+qs_hd = 0.0
+if anz_hd > 0:
+    # Erstgerät 2,0 l/s, Folgegeräte 1,0 l/s 
+    # In Verbindung mit Waschanlage: Erstes HD-Gerät bereits 1,0 l/s 
+    if is_wash:
+        qs_hd = anz_hd * 1.0
+    else:
+        qs_hd = 2.0 + (anz_hd - 1) * 1.0
+        
+qs = qs1_total + qs_w + qs_hd # [cite: 19-22]
 st.info(f"Gesamt Schmutzwasser Qs = {qs:.2f} l/s")
 
 st.divider()
@@ -77,21 +106,30 @@ st.divider()
 # --- 3. FAKTOREN ---
 st.header("3. Faktoren & Anlagentyp")
 at = st.selectbox("Gewählter Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
-fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0) else 1.0
+# fx=2.0 bei Schmutzwasserbehandlung [cite: 28]
+fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0 or qs1_total > 0) else 1.0 # [cite: 28, 29]
 
 dichte = st.selectbox("Dichte der Leichtflüssigkeit (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
-fd_map = {"bis 0,85": 1.0, "0,85 - 0,90": {"S-II-P": 2.0, "S-I-P": 1.5, "S-II-I-P": 1.0}, "0,90 - 0,95": {"S-II-P": 3.0, "S-I-P": 2.0, "S-II-I-P": 1.0}}
-fd = fd_map[dichte] if dichte == "bis 0,85" else fd_map[dichte][at]
+fd_map = {
+    "bis 0,85": {"S-II-P": 1.0, "S-I-P": 1.0, "S-II-I-P": 1.0},
+    "0,85 - 0,90": {"S-II-P": 2.0, "S-I-P": 1.5, "S-II-I-P": 1.0},
+    "0,90 - 0,95": {"S-II-P": 3.0, "S-I-P": 2.0, "S-II-I-P": 1.0}
+}
+fd = fd_map[dichte][at] # [cite: 39]
 
 fame = st.selectbox("Biodiesel-Anteil (FAME)", ["bis 5 %", "5 - 10 %", "über 10 %"])
-ff_map = {"bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0}, "5 - 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0}, "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}}
-ff = ff_map[fame][at]
+ff_map = {
+    "bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0},
+    "5 - 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0},
+    "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}
+}
+ff = ff_map[fame][at] # [cite: 49]
 
 st.divider()
 
 # --- 4. ERGEBNIS NS ---
 st.header("4. Ergebnis Nenngröße")
-ns = (qr + fx * qs) * fd * ff
+ns = (qr + fx * qs) * fd * ff # [cite: 56]
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
 st.success(f"### Erforderliche Nenngröße: NS {ns:.2f}")
 
@@ -101,8 +139,8 @@ st.divider()
 st.header("5. Schlammfangvolumen")
 
 if is_wash:
-    v_sf = 5000.0
-    bewertung_text = "Waschstraße / Portalwaschanlage (Festwert nach DIN 1999-100)"
+    v_sf = 5000.0 # Mindestvolumen Waschanlage [cite: 71]
+    bewertung_text = "Waschstraße / Portalwaschanlage (Mindestvolumen 5000 l nach DIN 1999-100)"
     st.warning(f"Bewertung: {bewertung_text}")
 else:
     anfall = st.radio("Erwarteter Schlammanfall auswählen:", ["Kein", "Gering", "Mittel", "Groß"], index=0)
@@ -112,18 +150,28 @@ else:
         v_sf = 0.0
     elif anfall == "Gering":
         bewertung_text = "alle Regenauffangflächen, auf denen nur geringe Mengen an Schmutz durch Straßenverkehr oder Ähnliches anfällt, z.B. Auffangtassen auf Tankfeldern und überdachten Tankstellen"
-        v_sf = (100 * ns) / (fd * ff)
+        # 100 * NS / fd 
+        v_sf = (100 * ns) / fd if fd > 0 else 0
     elif anfall == "Mittel":
         bewertung_text = "Tankstellen, PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe"
-        v_sf = (200 * ns) / (fd * ff)
+        # 200 * NS / fd 
+        v_sf = (200 * ns) / fd if fd > 0 else 0
     elif anfall == "Groß":
         bewertung_text = "Waschplätze für Baustellenfahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände"
-        v_sf = (300 * ns) / (fd * ff)
+        # 300 * NS / fd 
+        v_sf = (300 * ns) / fd if fd > 0 else 0
     
+    # Mindestschlammfangvolumina einhalten [cite: 70]
+    if ns > 0:
+        v_min = 600.0 if ns <= 3 else 2500.0
+        if v_sf < v_min:
+            v_sf = v_min
+            bewertung_text += f" (Erhöht auf Mindestvolumen {v_min} l)"
+
     st.info(f"**Bewertung:** {bewertung_text}")
 
-# Deckelung auf 5000 Liter
-if v_sf > 5000.0: v_sf = 5000.0
+# Deckelung auf 5000 Liter (Optional, falls gewünscht - Norm erlaubt mehr)
+# if v_sf > 5000.0: v_sf = 5000.0
 
 st.metric("Berechnetes Volumen", f"{v_sf:.2f} Liter")
 
@@ -178,8 +226,17 @@ def create_detailed_pdf():
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, " 2. Schmutzwasser-Berechnung (Qs)", ln=True, fill=True)
     pdf.set_font("Arial", '', 10)
-    pdf.cell(100, 7, f"- Zapfstellen & Waschanlage Typ: {wasch_typ}")
-    pdf.cell(90, 7, f"Qs = {qs:.2f} l/s", ln=True, align='R')
+    pdf.cell(100, 7, f"- Auslaufventile (Gleichzeitigkeit beruecksichtigt):")
+    pdf.cell(90, 7, f"{qs1_total:.2f} l/s", ln=True, align='R')
+    if qs_w > 0:
+        pdf.cell(100, 7, f"- Waschanlage ({wasch_typ}):")
+        pdf.cell(90, 7, f"{qs_w:.2f} l/s", ln=True, align='R')
+    if qs_hd > 0:
+        pdf.cell(100, 7, f"- Hochdruckreiniger ({anz_hd} Stk.):")
+        pdf.cell(90, 7, f"{qs_hd:.2f} l/s", ln=True, align='R')
+    pdf.set_font("Arial", 'B', 11)
+    pdf.cell(100, 10, "Gesamt Schmutzwasser (Qs):")
+    pdf.cell(90, 10, f"{qs:.2f} l/s", ln=True, align='R')
     pdf.ln(5)
 
     # Ergebnisse
