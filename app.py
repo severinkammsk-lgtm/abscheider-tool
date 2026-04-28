@@ -10,22 +10,22 @@ st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 # 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
 st.markdown("""
     <style>
-    input[::-webkit-outer-spin-button],
+    input::-webkit-outer-spin-button,
     input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
     input[type=number] { -moz-appearance: textfield !important; }
     .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# Hilfsfunktion zur Ventilberechnung nach Tabelle 1 (Gruppenbasierte Berechnung)
+# Hilfsfunktion zur Ventilberechnung nach Tabelle 1 (DIN 1999-100)
 def calc_valve_flow(count, values):
     res = 0.0
     for i in range(count):
-        if i == 0: res += values[0]
-        elif i == 1: res += values[1]
-        elif i == 2: res += values[2]
-        elif i == 3: res += values[3]
-        else: res += values[4]
+        if i == 0: res += values[0]   # 1. Ventil 100%
+        elif i == 1: res += values[1] # 2. Ventil 100%
+        elif i == 2: res += values[2] # 3. Ventil 70%
+        elif i == 3: res += values[3] # 4. Ventil 50%
+        else: res += values[4]         # ab 5. Ventil 20%
     return res
 
 # --- PROJEKTDATEN ---
@@ -40,7 +40,7 @@ with col_adr2:
 st.divider()
 
 # --- 1. REGENABFLUSS ---
-st.header("1. Regenabfluss (Qr)")
+st.header("1. Regenabfluss ($Q_r$)")
 r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0, format="%.1f")
 
 def flaeche_zeile(label, key_suffix, info=""):
@@ -77,18 +77,19 @@ a_schlag, lt_s, ht_s = schlagregen_zeile("Schlagregen (Wandfläche)", "schlag")
 
 total_area = a_tank + a_hof + a_wasch + a_lager + a_schlag
 qr = (r_spende * total_area) / 10000
-st.info(f"Gesamtfläche: {total_area:.2f} m² | Qr = {qr:.2f} l/s")
+st.info(f"Gesamtfläche: {total_area:.2f} m² | $Q_r$ = {qr:.2f} l/s")
 
 st.divider()
 
 # --- 2. SCHMUTZWASSER ---
-st.header("2. Schmutzwasser (Qs)")
+st.header("2. Schmutzwasser ($Q_s$)")
 col_s1, col_s2 = st.columns(2)
 with col_s1:
     v15_c = st.number_input("Anzahl Ventile DN 15", min_value=0, step=1)
     v20_c = st.number_input("Anzahl Ventile DN 20", min_value=0, step=1)
     v25_c = st.number_input("Anzahl Ventile DN 25", min_value=0, step=1)
 
+# Abflusswerte nach Tabelle 1: [1., 2., 3., 4., 5.+]
 qs1_15 = calc_valve_flow(v15_c, [0.5, 0.5, 0.35, 0.25, 0.1])
 qs1_20 = calc_valve_flow(v20_c, [1.0, 1.0, 0.7, 0.5, 0.2])
 qs1_25 = calc_valve_flow(v25_c, [1.7, 1.7, 1.2, 0.85, 0.3])
@@ -100,10 +101,16 @@ with col_s2:
 
 is_wash = wasch_typ in ["Portalwaschanlage", "Waschstraße"]
 qs_w = 2.0 if is_wash else 0.0
-qs_hd = anz_hd * 1.0 if is_wash else (2.0 + (anz_hd - 1) * 1.0 if anz_hd > 0 else 0.0)
+# Logik: HD-Reiniger 1,0 l/s wenn Waschanlage vorhanden, sonst 2,0 l/s fürs erste Gerät
+qs_hd = 0.0
+if anz_hd > 0:
+    if is_wash:
+        qs_hd = anz_hd * 1.0
+    else:
+        qs_hd = 2.0 + (anz_hd - 1) * 1.0
         
 qs = qs1_total + qs_w + qs_hd
-st.info(f"Gesamt Schmutzwasser Qs = {qs:.2f} l/s")
+st.info(f"Gesamt Schmutzwasser $Q_s$ = {qs:.2f} l/s")
 
 st.divider()
 
@@ -138,7 +145,7 @@ if is_wash:
     bew_t = "Waschstraße / Portalwaschanlage (Festwert nach DIN 1999-100)"
     st.warning(f"Bewertung: {bew_t}")
 else:
-    # Auswahl mit Abstand und Prozentangaben
+    # Auswahl mit exakten Abständen und Prozentwerten
     anfall_opt = {
         "Kein           0 %": 0,
         "Gering       100 %": 100,
@@ -150,7 +157,6 @@ else:
     
     v_sf_calc = (sf_faktor * ns) / fd if fd > 0 else 0
     
-    # Bewertungstexte basierend auf der Auswahl
     bew_map = {
         0: "Kondensat",
         100: "alle Regenauffangflächen, auf denen nur geringe Mengen an Schmutz durch Straßenverkehr oder Ähnliches anfällt, z. B. Auffangtassen auf Tankfeldern und überdachten Tankstellen",
