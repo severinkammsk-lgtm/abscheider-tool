@@ -7,10 +7,10 @@ import io
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
+# 2. CSS: Buttons entfernen & Mobile-Optimierung
 st.markdown("""
     <style>
-    input[::-webkit-outer-spin-button],
+    input::-webkit-outer-spin-button,
     input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
     input[type=number] { -moz-appearance: textfield !important; }
     .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
@@ -43,11 +43,11 @@ def flaeche_zeile(label, key_suffix, wind_faktor=1.0):
         st.markdown(f"<div style='padding-top:35px'>= <b>{res:.2f} m²</b></div>", unsafe_allow_html=True)
     return res, l, b
 
-a_tank, l_tank, b_tank = flaeche_zeile("Tankfläche", "tank")
-a_hof, l_hof, b_hof = flaeche_zeile("Hof- / Freifläche", "hof")
-a_wasch, l_wasch, b_wasch = flaeche_zeile("Waschplatz (außen)", "wasch")
-a_lager, l_lager, b_lager = flaeche_zeile("Lager- / Abstellfläche", "lager")
-a_wand, l_wand, b_wand = flaeche_zeile("Wandfläche (Schlagregen 50%)", "wand", wind_faktor=0.5)
+a_tank, lt, bt = flaeche_zeile("Tankfläche", "tank")
+a_hof, lh, bh = flaeche_zeile("Hof- / Freifläche", "hof")
+a_wasch, lw, bw = flaeche_zeile("Waschplatz (außen)", "wasch")
+a_lager, ll, bl = flaeche_zeile("Lager- / Abstellfläche", "lager")
+a_wand, lwa, bwa = flaeche_zeile("Wandfläche (Schlagregen 50%)", "wand", wind_faktor=0.5)
 
 total_area = a_tank + a_hof + a_wasch + a_lager + a_wand
 qr = (r_spende * total_area) / 10000
@@ -76,8 +76,5 @@ st.divider()
 
 # --- 3. FAKTOREN ---
 st.header("3. Faktoren & Anlagentyp")
-anlagentyp = st.selectbox("Gewählter Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
-fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0) else 1.0
-
-dichte = st.selectbox("Dichte der Leichtflüssigkeit", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
-fd_map = {"bis 0,85": 1.0, "0
+at = st.selectbox("Gewählter Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
+fx = 2.
