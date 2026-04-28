@@ -1,23 +1,22 @@
 import streamlit as st
 import pandas as pd
 
-# 1. Seiteneinstellungen
+# 1. Grundkonfiguration
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS-HACK: ENTFERNT + UND - BUTTONS UND OPTIMIERT DIE EINGABE
+# 2. CSS-BLOCK: Buttons entfernen & Mobile-Optimierung
 st.markdown("""
     <style>
-    /* Versteckt die Pfeile in Chrome, Safari, Edge, Opera */
+    /* Entfernt die Pfeile/Buttons komplett */
     input::-webkit-outer-spin-button,
     input[::-webkit-inner-spin-button] {
         -webkit-appearance: none !important;
         margin: 0 !important;
     }
-    /* Versteckt die Pfeile in Firefox */
     input[type=number] {
         -moz-appearance: textfield !important;
     }
-    /* Zentriert den Text und vergrößert die Schrift für mobile Geräte */
+    /* Zentriert Text und vergrößert ihn für Handys */
     .stNumberInput div div input {
         text-align: center !important;
         font-size: 20px !important;
@@ -27,7 +26,6 @@ st.markdown("""
 
 # --- KUNDENDATEN ---
 st.title("📋 Abscheider-Bemessung (DIN 1999-100)")
-st.subheader("Projektdaten")
 col_k1, col_k2 = st.columns(2)
 with col_k1:
     kunden_name = st.text_input("Bauvorhaben / Kunde", placeholder="Name")
@@ -58,22 +56,22 @@ a_tank = flaeche_zeile("Tankfläche", "tank")
 a_hof = flaeche_zeile("Hof- / Freifläche", "hof")
 a_wasch = flaeche_zeile("Waschplatz (außen)", "wasch")
 a_lager = flaeche_zeile("Lager- / Abstellfläche", "lager")
-a_wand = flaeche_zeile("Wandfläche (Schlagregen 50%)", "wand", wind_faktor=0.5)
+a_wand = flaeche_zeile("Wandfläche (Wind 50%)", "wand", wind_faktor=0.5)
 
 total_area = a_tank + a_hof + a_wasch + a_lager + a_wand
 qr = (r_spende * total_area) / 10000
-st.info(f"Gesamtfläche: {total_area:.2f} m² | Qr = {qr:.2f} l/s")
+st.info(f"Gesamtfläche: {total_area:.2f} m² | **Qr = {qr:.2f} l/s**")
 
 st.divider()
 
 # --- 2. SCHMUTZWASSER (QS) ---
 st.header("2. Schmutzwasser (Qs)")
-col_s1, col_s2 = st.columns(2)
-with col_s1:
-    dn15 = st.number_input("Ventil DN 15 (0,5 l/s) [Anzahl]", min_value=0) * 0.5
-    dn20 = st.number_input("Ventil DN 20 (1,0 l/s) [Anzahl]", min_value=0) * 1.0
-    dn25 = st.number_input("Ventil DN 25 (1,7 l/s) [Anzahl]", min_value=0) * 1.7
-with col_s2:
+cs1, cs2 = st.columns(2)
+with cs1:
+    dn15 = st.number_input("Ventil DN 15 (0,5 l/s) [Stück]", min_value=0) * 0.5
+    dn20 = st.number_input("Ventil DN 20 (1,0 l/s) [Stück]", min_value=0) * 1.0
+    dn25 = st.number_input("Ventil DN 25 (1,7 l/s) [Stück]", min_value=0) * 1.7
+with cs2:
     wasch_typ = st.selectbox("Waschanlage", ["Keine", "Portalwaschanlage", "Waschstraße"])
     anz_hd = st.number_input("Anzahl HD-Reiniger", min_value=0)
 
@@ -85,7 +83,7 @@ else:
     qs_hd = 2.0 + (anz_hd - 1) * 1.0 if anz_hd > 0 else 0.0
 
 qs = dn15 + dn20 + dn25 + qs_w + qs_hd
-st.info(f"Gesamt Qs = {qs:.2f} l/s")
+st.info(f"**Gesamt Qs = {qs:.2f} l/s**")
 
 st.divider()
 
@@ -118,7 +116,7 @@ st.divider()
 st.header("4. Ergebnis Nenngröße")
 ns = (qr + fx * qs) * fd * ff
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
-st.success(f"Erforderliche Nenngröße: NS {ns:.2f}")
+st.success(f"### Erforderliche Nenngröße: NS {ns:.2f}")
 
 st.divider()
 
@@ -132,7 +130,7 @@ else:
     anfall = st.radio("Erwarteter Schlammanfall auswählen:", ["Kein", "Gering", "Mittel", "Groß"], index=1)
     
     if anfall == "Kein":
-        st.info("**Bewertung:** Kondensat. Kein Schlammfang erforderlich.")
+        st.info("**Bewertung:** - Kondensat. Kein Schlammfang erforderlich.")
         v_sf = 0.0
     elif anfall == "Gering":
         st.info("**Bewertung:** - alle Regenauffangflächen, auf denen nur geringe Mengen an Schmutz durch Straßenverkehr oder Ähnliches anfällt, z.B. Auffangtassen auf Tankfeldern und überdachten Tankstellen")
@@ -140,4 +138,19 @@ else:
     elif anfall == "Mittel":
         st.info("**Bewertung:** - Tankstellen, PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe")
         # Formel: 200 * NS / fd / ff | Mindestvolumen 600l
-        v
+        v_sf = max((200 * ns) / (fd * ff), 600.0)
+    elif anfall == "Groß":
+        st.info("**Bewertung:** - Waschplätze für Baustellenfahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände")
+        # Formel: 300 * NS / fd / ff | Mindestvolumen 5000l
+        v_sf = max((300 * ns) / (fd * ff), 5000.0)
+
+st.metric("Erforderliches Volumen", f"{v_sf:.2f} Liter")
+
+# Export
+if st.button("Ergebnis als CSV speichern"):
+    export_df = pd.DataFrame([{
+        "Kunde": kunden_name, 
+        "NS": round(ns, 2), 
+        "Schlammvolumen": round(v_sf, 2)
+    }])
+    st.download_button("Download CSV", export_df.to_csv(index=False), f"Bemessung_{kunden_name}.csv")
