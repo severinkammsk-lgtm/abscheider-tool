@@ -7,7 +7,7 @@ import io
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS-HACK: Buttons entfernen & Mobile-Optimierung
+# 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
 st.markdown("""
     <style>
     input[::-webkit-outer-spin-button],
@@ -79,8 +79,5 @@ st.header("3. Faktoren & Anlagentyp")
 anlagentyp = st.selectbox("Gewählter Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
 fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0) else 1.0
 
-dichte = st.selectbox("Dichte der Leichtflüssigkeit (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
-fd_map = {"bis 0,85": {"S-II-P": 1.0, "S-I-P": 1.0, "S-II-I-P": 1.0}, "0,85 - 0,90": {"S-II-P": 2.0, "S-I-P": 1.5, "S-II-I-P": 1.0}, "0,90 - 0,95": {"S-II-P": 3.0, "S-I-P": 2.0, "S-II-I-P": 1.0}}
-fd = fd_map[dichte][anlagentyp]
-
-fame = st.selectbox("
+dichte = st.selectbox("Dichte der Leichtflüssigkeit", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
+fd_map = {"bis 0,85": 1.0, "0
