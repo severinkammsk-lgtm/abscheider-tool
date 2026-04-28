@@ -4,24 +4,13 @@ import pandas as pd
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS-HACK: ENTFERNT + UND - BUTTONS UND OPTIMIERT DIE EINGABE
+# 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
 st.markdown("""
     <style>
-    /* Versteckt die Pfeile in Chrome, Safari, Edge, Opera */
     input::-webkit-outer-spin-button,
-    input[::-webkit-inner-spin-button] {
-        -webkit-appearance: none !important;
-        margin: 0 !important;
-    }
-    /* Versteckt die Pfeile in Firefox */
-    input[type=number] {
-        -moz-appearance: textfield !important;
-    }
-    /* Zentriert den Text und optimiert die Anzeige */
-    .stNumberInput div div input {
-        text-align: center !important;
-        font-size: 20px !important;
-    }
+    input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
+    input[type=number] { -moz-appearance: textfield !important; }
+    .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -59,7 +48,7 @@ a_wand = flaeche_zeile("Wandfläche (Schlagregen 50%)", "wand", wind_faktor=0.5)
 
 total_area = a_tank + a_hof + a_wasch + a_lager + a_wand
 qr = (r_spende * total_area) / 10000
-st.info(f"Gesamtfläche: {total_area:.2f} m² | **Qr = {qr:.2f} l/s**")
+st.info(f"Gesamtfläche: {total_area:.2f} m² | Qr = {qr:.2f} l/s")
 
 st.divider()
 
@@ -79,7 +68,7 @@ qs_w = 2.0 if is_wash else 0.0
 qs_hd = anz_hd * 1.0 if is_wash else (2.0 + (anz_hd - 1) * 1.0 if anz_hd > 0 else 0.0)
 
 qs = dn15 + dn20 + dn25 + qs_w + qs_hd
-st.info(f"**Gesamt Qs = {qs:.2f} l/s**")
+st.info(f"Gesamt Qs = {qs:.2f} l/s")
 
 st.divider()
 
@@ -100,14 +89,4 @@ fame = st.selectbox("FAME-Anteil (%)", ["bis 5 %", "5 - 10 %", "über 10 %"])
 ff_map = {
     "bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0},
     "5 - 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0},
-    "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}
-}
-ff = ff_map[fame][anlagentyp]
-
-st.divider()
-
-# --- 4. ERGEBNIS NS ---
-st.header("4. Ergebnis Nenngröße")
-ns = (qr + fx * qs) * fd * ff
-st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
-st.success(f"### Erforder
+    "über 10 %": {"S-II-P": 1.7
