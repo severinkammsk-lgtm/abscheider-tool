@@ -7,10 +7,10 @@ import io
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS-HACK: Buttons entfernen & Mobile-Optimierung
+# 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
 st.markdown("""
     <style>
-    input::-webkit-outer-spin-button,
+    input[::-webkit-outer-spin-button],
     input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
     input[type=number] { -moz-appearance: textfield !important; }
     .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
@@ -111,25 +111,22 @@ st.header("5. Schlammfangvolumen")
 
 if is_wash:
     v_sf = 5000.0
-    st.warning("⚠️ Waschstraße / Portalwaschanlage: **Festwert 5.000 Liter**")
+    st.warning("⚠️ Portalwaschanlage / Waschstraße: Festwert 5.000 Liter")
 else:
     anfall = st.radio("Erwarteter Schlammanfall auswählen:", ["Kein", "Gering", "Mittel", "Groß"], index=0)
     
-    if ns == 0:
+    if anfall == "Kein":
+        st.info("**Bewertung:** - Kondensat")
         v_sf = 0.0
-    else:
-        if anfall == "Kein":
-            st.info("**Bewertung:** - Kondensat")
-            v_sf = 0.0
-        elif anfall == "Gering":
-            st.info("**Bewertung:** - alle Regenauffangflächen mit geringem Schmutzanfall (z.B. Auffangtassen, überdachte Tankstellen)")
-            v_sf = (100 * ns) / (fd * ff)
-        elif anfall == "Mittel":
-            st.info("**Bewertung:** - Tankstellen, PKW-Wäsche von Hand, Werkstätten, Abstellflächen, Kraftwerke")
-            v_sf = (200 * ns) / (fd * ff)
-        elif anfall == "Groß":
-            st.info("**Bewertung:** - Waschplätze für LKW, Baumaschinen, landwirtschaftliche Maschinen")
-            v_sf = (300 * ns) / (fd * ff)
+    elif anfall == "Gering":
+        st.info("**Bewertung:** - alle Regenauffangflächen mit geringem Schmutzanfall, z.B. Auffangtassen auf Tankfeldern, überdachte Tankstellen")
+        v_sf = (100 * ns) / (fd * ff)
+    elif anfall == "Mittel":
+        st.info("**Bewertung:** - Tankstellen, PKW-Wäsche von Hand, Omnibus-Waschstände, Reparaturwerkstätten, Abstellflächen, Kraftwerke")
+        v_sf = (200 * ns) / (fd * ff)
+    elif anfall == "Groß":
+        st.info("**Bewertung:** - Waschplätze für LKW, Baumaschinen, landwirtschaftliche Maschinen")
+        v_sf = (300 * ns) / (fd * ff)
 
 # Deckelung auf maximal 5000 Liter
 if v_sf > 5000.0:
@@ -140,7 +137,7 @@ st.metric("Berechnetes Volumen", f"{v_sf:.2f} Liter")
 st.divider()
 
 # --- PDF GENERIERUNG ---
-def create_pdf_data():
+def create_pdf_bytes():
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
@@ -151,14 +148,14 @@ def create_pdf_data():
     pdf.cell(0, 10, f"Standort: {kunden_adresse}", ln=True)
     pdf.cell(0, 10, f"Datum: {datetime.now().strftime('%d.%m.%Y')}", ln=True)
     pdf.ln(5)
-    pdf.cell(0, 10, f"Ergebnis Nenngroesse: NS {ns:.2f}", ln=True)
-    pdf.cell(0, 10, f"Ergebnis Schlammfang: {v_sf:.2f} Liter", ln=True)
+    pdf.cell(0, 10, f"ERGEBNIS: NS {ns:.2f}", ln=True)
+    pdf.cell(0, 10, f"Schlammfangvolumen: {v_sf:.2f} Liter", ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
 if kunden_name and kunden_adresse:
-    pdf_bytes = create_pdf_data()
+    pdf_bytes = create_pdf_bytes()
     st.download_button(
-        label="📄 PDF Protokoll herunterladen",
+        label="📄 PDF Protokoll erstellen & herunterladen",
         data=pdf_bytes,
         file_name=f"Bemessung_{kunden_name}.pdf",
         mime="application/pdf"
