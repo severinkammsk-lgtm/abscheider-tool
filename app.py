@@ -4,13 +4,23 @@ import pandas as pd
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
+# 2. CSS-BLOCK: Buttons entfernen & Mobile-Optimierung
 st.markdown("""
     <style>
+    /* Entfernt die Pfeile/Buttons komplett */
     input::-webkit-outer-spin-button,
-    input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
-    input[type=number] { -moz-appearance: textfield !important; }
-    .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
+    input[::-webkit-inner-spin-button] {
+        -webkit-appearance: none !important;
+        margin: 0 !important;
+    }
+    input[type=number] {
+        -moz-appearance: textfield !important;
+    }
+    /* Zentriert Text und vergrößert ihn für Handys */
+    .stNumberInput div div input {
+        text-align: center !important;
+        font-size: 20px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -44,7 +54,7 @@ a_tank = flaeche_zeile("Tankfläche", "tank")
 a_hof = flaeche_zeile("Hof- / Freifläche", "hof")
 a_wasch = flaeche_zeile("Waschplatz (außen)", "wasch")
 a_lager = flaeche_zeile("Lager- / Abstellfläche", "lager")
-a_wand = flaeche_zeile("Wandfläche (Schlagregen 50%)", "wand", wind_faktor=0.5)
+a_wand = flaeche_zeile("Wandfläche (Wind 50%)", "wand", wind_faktor=0.5)
 
 total_area = a_tank + a_hof + a_wasch + a_lager + a_wand
 qr = (r_spende * total_area) / 10000
@@ -54,12 +64,12 @@ st.divider()
 
 # --- 2. SCHMUTZWASSER (QS) ---
 st.header("2. Schmutzwasser (Qs)")
-col_s1, col_s2 = st.columns(2)
-with col_s1:
+cs1, cs2 = st.columns(2)
+with cs1:
     dn15 = st.number_input("Ventil DN 15 (0,5 l/s)", min_value=0) * 0.5
     dn20 = st.number_input("Ventil DN 20 (1,0 l/s)", min_value=0) * 1.0
     dn25 = st.number_input("Ventil DN 25 (1,7 l/s)", min_value=0) * 1.7
-with col_s2:
+with cs2:
     wasch_typ = st.selectbox("Waschanlage", ["Keine", "Portalwaschanlage", "Waschstraße"])
     anz_hd = st.number_input("Anzahl HD-Reiniger", min_value=0)
 
@@ -89,4 +99,48 @@ fame = st.selectbox("FAME-Anteil (%)", ["bis 5 %", "5 - 10 %", "über 10 %"])
 ff_map = {
     "bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0},
     "5 - 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0},
-    "über 10 %": {"S-II-P": 1.7
+    "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}
+}
+ff = ff_map[fame][anlagentyp]
+
+st.divider()
+
+# --- 4. ERGEBNIS NS ---
+st.header("4. Ergebnis Nenngröße")
+ns = (qr + fx * qs) * fd * ff
+st.latex(rf"NS = (Q_r + f_x \cdot Q_s) \cdot f_d \cdot f_f")
+st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
+st.success(f"Erforderliche Nenngröße: **NS {ns:.2f}**")
+
+st.divider()
+
+# --- 5. SCHLAMMFANGVOLUMEN ---
+st.header("5. Schlammfangvolumen")
+
+if is_wash:
+    v_sf = 5000.0
+    st.warning("⚠️ Portalwaschanlage / Waschstraße: Festwert 5.000 Liter")
+else:
+    anfall = st.radio("Erwarteter Schlammanfall auswählen:", ["Kein", "Gering", "Mittel", "Groß"], index=0)
+    
+    if ns == 0:
+        v_sf = 0.0
+    else:
+        if anfall == "Kein":
+            st.info("**Bewertung:** - Kondensat")
+            v_sf = 0.0
+        elif anfall == "Gering":
+            st.info("**Bewertung:** - alle Regenauffangflächen, auf denen nur geringe Mengen an Schmutz durch Straßenverkehr oder Ähnliches anfällt, z.B. Auffangtassen auf Tankfeldern und überdachten Tankstellen")
+            v_sf = (100 * ns) / (fd * ff)
+        elif anfall == "Mittel":
+            st.info("**Bewertung:** - Tankstellen, PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe")
+            v_sf = (200 * ns) / (fd * ff)
+        elif anfall == "Groß":
+            st.info("**Bewertung:** - Waschplätze für Baustellefahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände")
+            v_sf = (300 * ns) / (fd * ff)
+
+# Deckelung auf 5000 Liter
+if v_sf > 5000.0:
+    v_sf = 5000.0
+
+st.metric("Berechnetes Volumen", f"{v_sf:.2f} Liter")
