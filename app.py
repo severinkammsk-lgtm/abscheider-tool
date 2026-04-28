@@ -10,44 +10,32 @@ st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 # 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
 st.markdown("""
     <style>
-    input[::-webkit-outer-spin-button],
+    input::-webkit-outer-spin-button,
     input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
     input[type=number] { -moz-appearance: textfield !important; }
     .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# Hilfsfunktion für die Ventilberechnung nach DIN 1999-100 (Tabelle 1)
-def get_qs1_total_norm(v15, v20, v25):
-    # Alle Ventile in einer Liste sammeln (Größe zuerst)
-    all_valves = ([25] * v25) + ([20] * v20) + ([15] * v15)
-    
-    # Abflusstabelle nach DIN 1999-100
-    # Werte für: 1. Ventil, 2. Ventil, 3. Ventil, 4. Ventil, ab 5. Ventil
-    table = {
-        25: [1.70, 1.70, 1.20, 0.85, 0.30],
-        20: [1.00, 1.00, 0.70, 0.50, 0.20],
-        15: [0.50, 0.50, 0.35, 0.25, 0.10]
-    }
-    
-    details = []
-    total_qs1 = 0.0
-    for i, dn in enumerate(all_valves):
-        pos = i if i < 4 else 4
-        flow = table[dn][pos]
-        total_qs1 += flow
-        details.append({"DN": dn, "Nr": i + 1, "Flow": flow})
-        
-    return details, total_qs1
+# Hilfsfunktion zur Ventilberechnung nach Tabelle 1 (DIN EN 858-2 / DIN 1999-100)
+def calc_valve_flow(count, values):
+    res = 0.0
+    for i in range(count):
+        if i == 0: res += values[0]   # 1. Ventil
+        elif i == 1: res += values[1] # 2. Ventil
+        elif i == 2: res += values[2] # 3. Ventil
+        elif i == 3: res += values[3] # 4. Ventil
+        else: res += values[4]         # ab 5. Ventil
+    return res
 
 # --- PROJEKTDATEN ---
 st.title("📋 Abscheider-Bemessung (DIN 1999-100)")
-kunden_name = st.text_input("Name Kunde", placeholder="Vollständiger Name des Kunden")
+kunden_name = st.text_input("Name Kunde", placeholder="Vollständiger Name")
 col_adr1, col_adr2 = st.columns(2)
 with col_adr1:
-    kunden_strasse = st.text_input("Straße, Hausnummer", placeholder="Musterstraße 123")
+    kunden_strasse = st.text_input("Straße, Hausnummer", placeholder="Beispielstraße 1")
 with col_adr2:
-    kunden_ort = st.text_input("Postleitzahl, Ort", placeholder="12345 Musterstadt")
+    kunden_ort = st.text_input("Postleitzahl Ort", placeholder="12345 Musterstadt")
 
 st.divider()
 
@@ -87,7 +75,11 @@ with col_s1:
     v20_c = st.number_input("Anzahl Ventile DN 20", min_value=0, step=1)
     v25_c = st.number_input("Anzahl Ventile DN 25", min_value=0, step=1)
 
-valve_details, qs1_total = get_qs1_total_norm(v15_c, v20_c, v25_c)
+# Abflusswerte nach Tabelle 1: [1., 2., 3., 4., 5.+]
+qs1_15 = calc_valve_flow(v15_c, [0.5, 0.5, 0.35, 0.25, 0.1])
+qs1_20 = calc_valve_flow(v20_c, [1.0, 1.0, 0.7, 0.5, 0.2])
+qs1_25 = calc_valve_flow(v25_c, [1.7, 1.7, 1.2, 0.85, 0.3])
+qs1_total = qs1_15 + qs1_20 + qs1_25
 
 with col_s2:
     wasch_typ = st.selectbox("Waschanlage", ["Keine", "Portalwaschanlage", "Waschstraße"])
@@ -97,11 +89,8 @@ is_wash = wasch_typ in ["Portalwaschanlage", "Waschstraße"]
 qs_w = 2.0 if is_wash else 0.0
 qs_hd = 0.0
 if anz_hd > 0:
-    # DIN 1999-100: 1. HD-Gerät 2,0 l/s (bzw. 1,0 l/s bei Automatikwäsche), Folgegeräte 1,0 l/s
-    if is_wash:
-        qs_hd = anz_hd * 1.0
-    else:
-        qs_hd = 2.0 + (anz_hd - 1) * 1.0
+    # Erstgerät 2,0 l/s, Folgegeräte 1,0 l/s; bei Kombi mit Portalwasch ab 1. Gerät 1,0 l/s
+    qs_hd = anz_hd * 1.0 if is_wash else (2.0 + (anz_hd - 1) * 1.0)
         
 qs = qs1_total + qs_w + qs_hd
 st.info(f"Gesamt Schmutzwasser $Q_s$ = {qs:.2f} l/s")
@@ -144,7 +133,7 @@ st.header("5. Schlammfangvolumen")
 
 if is_wash:
     v_sf_calc = 5000.0
-    bew_t = "Waschstraße / Portalwaschanlage (Mindestwert 5.000 l)"
+    bew_t = "Fahrzeugwaschanlagen"
     sf_faktor = 0
 else:
     anfall = st.radio("Erwarteter Schlammanfall:", ["Kein", "Gering", "Mittel", "Groß"], index=0)
@@ -152,9 +141,9 @@ else:
     v_sf_calc = (sf_faktor * ns) / fd if fd > 0 else 0
     bew_t = {
         "Kein": "Kondensat",
-        "Gering": "Geringer Schmutzanfall (z. B. Auffangtassen)",
-        "Mittel": "Tankstellen, PKW-Wäsche, Werkstätten, Kraftwerke",
-        "Groß": "LKW-Waschplätze, Baumaschinen, Landwirtschaft"
+        "Gering": "Geringer Schlammanfall (Auffangtassen, etc.)",
+        "Mittel": "Tankstellen, PKW-Wäsche, Werkstätten",
+        "Groß": "LKW-Waschplätze, Baumaschinen"
     }[anfall]
 
 v_min = 0.0
@@ -171,65 +160,65 @@ def create_pdf():
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(190, 10, "Bemessungsprotokoll: Abscheideranlage".encode('latin-1','replace').decode('latin-1'), ln=True, align='C')
+    pdf.cell(190, 10, "Bemessungsprotokoll: Abscheideranlage".encode('latin-1').decode('latin-1'), ln=True, align='C')
     pdf.set_font("Arial", '', 10)
-    pdf.cell(190, 6, "Nach DIN 1999-100 / DIN EN 858-2".encode('latin-1','replace').decode('latin-1'), ln=True, align='C')
+    pdf.cell(190, 6, "Nach DIN 1999-100 / DIN EN 858-2".encode('latin-1').decode('latin-1'), ln=True, align='C')
     pdf.ln(10)
     
     # Projektdaten
     pdf.set_fill_color(240, 240, 240)
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 8, " Projektinformationen".encode('latin-1','replace').decode('latin-1'), ln=True, fill=True)
+    pdf.cell(190, 8, " Projektinformationen".encode('latin-1').decode('latin-1'), ln=True, fill=True)
     pdf.set_font("Arial", '', 11)
-    pdf.cell(50, 8, "Name Kunde:".encode('latin-1','replace').decode('latin-1'), border='B')
-    pdf.cell(140, 8, f" {kunden_name if kunden_name else '---'}".encode('latin-1','replace').decode('latin-1'), border='B', ln=True)
-    pdf.cell(50, 8, "Straße/Nr:".encode('latin-1','replace').decode('latin-1'), border='B')
-    pdf.cell(140, 8, f" {kunden_strasse if kunden_strasse else '---'}".encode('latin-1','replace').decode('latin-1'), border='B', ln=True)
-    pdf.cell(50, 8, "PLZ / Ort:".encode('latin-1','replace').decode('latin-1'), border='B')
-    pdf.cell(140, 8, f" {kunden_ort if kunden_ort else '---'}".encode('latin-1','replace').decode('latin-1'), border='B', ln=True)
+    pdf.cell(50, 8, "Name Kunde:".encode('latin-1').decode('latin-1'), border='B')
+    pdf.cell(140, 8, f" {kunden_name if kunden_name else '---'}".encode('latin-1').decode('latin-1'), border='B', ln=True)
+    pdf.cell(50, 8, "Straße/Nr:".encode('latin-1').decode('latin-1'), border='B')
+    pdf.cell(140, 8, f" {kunden_strasse if kunden_strasse else '---'}".encode('latin-1').decode('latin-1'), border='B', ln=True)
+    pdf.cell(50, 8, "PLZ / Ort:".encode('latin-1').decode('latin-1'), border='B')
+    pdf.cell(140, 8, f" {kunden_ort if kunden_ort else '---'}".encode('latin-1').decode('latin-1'), border='B', ln=True)
     pdf.cell(50, 8, "Datum:", border='B')
     pdf.cell(140, 8, f" {datetime.now().strftime('%d.%m.%Y')}", border='B', ln=True)
     pdf.ln(5)
     
-    # 1. Regenwasser
+    # Regenwasser
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 8, " 1. Regenwasser-Berechnung (Qr)".encode('latin-1','replace').decode('latin-1'), ln=True, fill=True)
+    pdf.cell(190, 8, " 1. Regenwasser-Berechnung (Qr)".encode('latin-1').decode('latin-1'), ln=True, fill=True)
     pdf.set_font("Arial", '', 10)
-    pdf.multi_cell(190, 6, f"Festgelegte Regenspende i: {r_spende} l/(s*ha). Diese basiert auf örtlichen Wetterdaten (Regendauer D=5 min, Jährlichkeit T=2 Jahre) gemäß DIN 1986-100.".encode('latin-1','replace').decode('latin-1'))
+    pdf.multi_cell(190, 6, f"Festgelegte Regenspende i: {r_spende} l/(s*ha). Diese basiert auf örtlichen Wetterdaten (Regendauer D=5 min, Jährlichkeit T=2 Jahre) gemäß DIN 1986-100.".encode('latin-1').decode('latin-1'))
     pdf.ln(2)
-    pdf.cell(100, 7, f"Gesamtfläche: {total_area:.2f} m²".encode('latin-1','replace').decode('latin-1'))
+    pdf.cell(100, 7, f"Gesamtfläche: {total_area:.2f} m²".encode('latin-1').decode('latin-1'))
     pdf.cell(90, 7, f"Qr = {qr:.2f} l/s", ln=True, align='R')
     pdf.ln(4)
 
-    # 2. Schmutzwasser
+    # Schmutzwasser
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 8, " 2. Schmutzwasser-Berechnung (Qs)".encode('latin-1','replace').decode('latin-1'), ln=True, fill=True)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 8, "Auslaufventile (Gleichzeitigkeit berücksichtigt):".encode('latin-1','replace').decode('latin-1'), ln=True)
+    pdf.cell(190, 8, " 2. Schmutzwasser-Berechnung (Qs)".encode('latin-1').decode('latin-1'), ln=True, fill=True)
     pdf.set_font("Arial", '', 10)
-    for v in valve_details:
-        pdf.cell(100, 6, f"- {v['Nr']}. Ventil: DN {v['DN']}")
-        pdf.cell(90, 6, f"{v['Flow']:.2f} l/s", ln=True, align='R')
+    pdf.cell(100, 6, "Summe Ventile DN 15:")
+    pdf.cell(90, 6, f"{qs1_15:.2f} l/s", ln=True, align='R')
+    pdf.cell(100, 6, "Summe Ventile DN 20:")
+    pdf.cell(90, 6, f"{qs1_20:.2f} l/s", ln=True, align='R')
+    pdf.cell(100, 6, "Summe Ventile DN 25:")
+    pdf.cell(90, 6, f"{qs1_25:.2f} l/s", ln=True, align='R')
+    if qs_w > 0:
+        pdf.cell(100, 6, f"Waschanlage ({wasch_typ}):")
+        pdf.cell(90, 6, f"{qs_w:.2f} l/s", ln=True, align='R')
     if qs_hd > 0:
-        pdf.cell(100, 6, f"- Hochdruckreiniger ({anz_hd} Stk.)")
+        pdf.cell(100, 6, f"Hochdruckreiniger ({anz_hd} Stk.):")
         pdf.cell(90, 6, f"{qs_hd:.2f} l/s", ln=True, align='R')
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(100, 8, "Summe Schmutzwasser (Qs):")
+    pdf.cell(100, 8, "Gesamt Schmutzwasser (Qs):")
     pdf.cell(90, 8, f"{qs:.2f} l/s", ln=True, align='R')
     pdf.ln(4)
 
-    # 3. Schlammfang
+    # Schlammfang
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 8, " 3. Schlammfangvolumen (V)".encode('latin-1','replace').decode('latin-1'), ln=True, fill=True)
+    pdf.cell(190, 8, " 3. Schlammfangvolumen (V)".encode('latin-1').decode('latin-1'), ln=True, fill=True)
     pdf.set_font("Arial", '', 10)
-    pdf.multi_cell(190, 6, f"Einstufung: {bew_t}".encode('latin-1','replace').decode('latin-1'))
+    pdf.multi_cell(190, 6, f"Die Schlammfangmenge V ergibt sich aus dem gewählten Schlammanfall-Faktor multipliziert mit der Nenngröße NS, geteilt durch den Dichtefaktor fd. Dabei werden die normativen Mindestwerte von 600 l, 2500 l oder 5000 l berücksichtigt.".encode('latin-1').decode('latin-1'))
     pdf.ln(2)
-    if not is_wash:
-        pdf.cell(0, 7, f"Berechnung: ({sf_faktor} * NS) / fd = ({sf_faktor} * {ns:.2f}) / {fd} = {v_sf_calc:.2f} l".encode('latin-1','replace').decode('latin-1'), ln=True)
-        pdf.cell(0, 7, f"Mindestwert gemäß NS {ns:.2f}: {v_min:.0f} l".encode('latin-1','replace').decode('latin-1'), ln=True)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(100, 10, "Gewähltes Schlammfangvolumen:".encode('latin-1','replace').decode('latin-1'))
-    pdf.cell(90, 10, f"{v_final:.2f} Liter", ln=True, align='R')
+    pdf.cell(100, 7, f"Einstufung: {bew_t}".encode('latin-1').decode('latin-1'))
+    pdf.cell(90, 7, f"V = {v_final:.2f} Liter", ln=True, align='R')
     
     return pdf.output(dest='S').encode('latin-1')
 
@@ -237,4 +226,4 @@ if kunden_name and kunden_strasse and kunden_ort:
     pdf_bytes = create_pdf()
     st.download_button(label="📄 PDF Protokoll herunterladen", data=pdf_bytes, file_name=f"Bemessung_{kunden_name}.pdf", mime="application/pdf")
 else:
-    st.info("Bitte Kundendaten (Name, Straße, Ort) eingeben, um das PDF zu aktivieren.")
+    st.info("Bitte Kundendaten eingeben, um das PDF zu aktivieren.")
