@@ -4,7 +4,7 @@ from datetime import datetime
 from fpdf import FPDF
 import io
 
-# 1. Seiteneinstellungen
+# 1. Grundkonfiguration
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
 # 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
@@ -17,7 +17,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- PROJEKTDATEN ---
+# --- KUNDENDATEN ---
 st.title("📋 Abscheider-Bemessung (DIN 1999-100)")
 col_k1, col_k2 = st.columns(2)
 with col_k1:
@@ -91,4 +91,78 @@ fd = fd_map[dichte][anlagentyp]
 fame = st.selectbox("FAME-Anteil (%)", ["bis 5 %", "5 - 10 %", "über 10 %"])
 ff_map = {
     "bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0},
-    "5 - 10 %": {"S-II-P": 1.50, "S-I-
+    "5 - 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0},
+    "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}
+}
+ff = ff_map[fame][anlagentyp]
+
+st.divider()
+
+# --- 4. ERGEBNIS NS ---
+st.header("4. Ergebnis Nenngröße")
+ns = (qr + fx * qs) * fd * ff
+st.latex(rf"NS = (Q_r + f_x \cdot Q_s) \cdot f_d \cdot f_f")
+st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
+st.success(f"### Erforderliche Nenngröße: NS {ns:.2f}")
+
+st.divider()
+
+# --- 5. SCHLAMMFANGVOLUMEN ---
+st.header("5. Schlammfangvolumen")
+
+if is_wash:
+    v_sf = 5000.0
+    st.warning("⚠️ Portalwaschanlage / Waschstraße: Festwert 5.000 Liter")
+else:
+    anfall = st.radio("Erwarteter Schlammanfall auswählen:", ["Kein", "Gering", "Mittel", "Groß"], index=0)
+    
+    if anfall == "Kein":
+        st.info("**Bewertung:** - Kondensat")
+        v_sf = 0.0
+    elif anfall == "Gering":
+        st.info("**Bewertung:** - alle Regenauffangflächen, auf denen nur geringe Mengen an Schmutz durch Straßenverkehr oder Ähnliches anfällt, z.B. Auffangtassen auf Tankfeldern und überdachten Tankstellen")
+        v_sf = (100 * ns) / (fd * ff)
+    elif anfall == "Mittel":
+        st.info("**Bewertung:** - Tankstellen, PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe")
+        v_sf = (200 * ns) / (fd * ff)
+    elif anfall == "Groß":
+        st.info("**Bewertung:** - Waschplätze für Baustellefahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände")
+        v_sf = (300 * ns) / (fd * ff)
+
+# Deckelung auf 5000 Liter
+if v_sf > 5000.0:
+    v_sf = 5000.0
+
+st.metric("Berechnetes Volumen", f"{v_sf:.2f} Liter")
+
+st.divider()
+
+# --- PDF GENERIERUNG ---
+def create_pdf_bytes():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(190, 10, "Protokoll: Abscheider-Bemessung DIN 1999-100", ln=True, align='C')
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 10, f"Bauvorhaben: {kunden_name}", ln=True)
+    pdf.cell(0, 10, f"Standort: {kunden_adresse}", ln=True)
+    pdf.cell(0, 10, f"Datum: {datetime.now().strftime('%d.%m.%Y')}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "Berechnungsdaten:", ln=True)
+    pdf.set_font("Arial", '', 11)
+    pdf.cell(0, 8, f"Regenabfluss (Qr): {qr:.2f} l/s", ln=True)
+    pdf.cell(0, 8, f"Schmutzwasser (Qs): {qs:.2f} l/s", ln=True)
+    pdf.cell(0, 8, f"Faktoren: fx={fx}, fd={fd}, ff={ff}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, f"ERGEBNIS: NS {ns:.2f}", ln=True)
+    pdf.cell(0, 10, f"Schlammfangvolumen: {v_sf:.2f} Liter", ln=True)
+    
+    return pdf.output(dest='S').encode('latin-1')
+
+if kunden_name and k
