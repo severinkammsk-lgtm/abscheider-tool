@@ -10,14 +10,14 @@ st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 # 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
 st.markdown("""
     <style>
-    input::-webkit-outer-spin-button,
+    input[::-webkit-outer-spin-button],
     input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
     input[type=number] { -moz-appearance: textfield !important; }
     .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# Hilfsfunktion zur Ventilberechnung nach Tabelle 1 (DIN 1999-100)
+# Hilfsfunktion zur Ventilberechnung nach Tabelle 1 (Gruppenbasierte Berechnung)
 def calc_valve_flow(count, values):
     res = 0.0
     for i in range(count):
@@ -138,16 +138,26 @@ if is_wash:
     bew_t = "Waschstraße / Portalwaschanlage (Festwert nach DIN 1999-100)"
     st.warning(f"Bewertung: {bew_t}")
 else:
-    anfall = st.radio("Erwarteter Schlammanfall auswählen:", ["Kein", "Gering", "Mittel", "Groß"], index=0)
-    sf_faktor = {"Kein": 0, "Gering": 100, "Mittel": 200, "Groß": 300}[anfall]
+    # Auswahl mit Abstand und Prozentangaben
+    anfall_opt = {
+        "Kein           0 %": 0,
+        "Gering       100 %": 100,
+        "Mittel        200 %": 200,
+        "Groß         300 %": 300
+    }
+    selection = st.radio("Erwarteter Schlammanfall auswählen:", list(anfall_opt.keys()), index=0)
+    sf_faktor = anfall_opt[selection]
+    
     v_sf_calc = (sf_faktor * ns) / fd if fd > 0 else 0
     
-    bew_t = {
-        "Kein": "Kondensat",
-        "Gering": "alle Regenauffangflächen, auf denen nur geringe Mengen an Schmutz durch Straßenverkehr oder Ähnliches anfällt, z. B. Auffangtassen auf Tankfeldern und überdachten Tankstellen",
-        "Mittel": "Tankstellen, PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe",
-        "Groß": "Waschplätze für Baustellenfahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände"
-    }[anfall]
+    # Bewertungstexte basierend auf der Auswahl
+    bew_map = {
+        0: "Kondensat",
+        100: "alle Regenauffangflächen, auf denen nur geringe Mengen an Schmutz durch Straßenverkehr oder Ähnliches anfällt, z. B. Auffangtassen auf Tankfeldern und überdachten Tankstellen",
+        200: "Tankstellen, PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe",
+        300: "Waschplätze für Baustellenfahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände"
+    }
+    bew_t = bew_map[sf_faktor]
     st.info(f"**Bewertung:** {bew_t}")
 
 v_min = 0.0
@@ -219,9 +229,9 @@ def create_pdf():
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, txt(" 3. Schlammfangvolumen (V)"), ln=True, fill=True)
     pdf.set_font("Arial", '', 10)
-    pdf.multi_cell(190, 6, txt("Zusammensetzung: Der Wert ergibt sich aus dem Schlammanfall-Faktor multipliziert mit der Nenngröße (NS), geteilt durch den Dichtefaktor (fd). Berücksichtigt werden normative Mindestwerte (600l / 2500l / 5000l)."))
+    pdf.multi_cell(190, 6, txt(f"Zusammensetzung: Der Wert ergibt sich aus dem Schlammanfall-Faktor ({sf_faktor} %) multipliziert mit der Nenngröße (NS), geteilt durch den Dichtefaktor (fd). Berücksichtigt werden normative Mindestwerte (600l / 2500l / 5000l)."))
     pdf.ln(2)
-    pdf.cell(100, 7, txt(f"Einstufung: {bew_t}"))
+    pdf.cell(100, 7, txt(f"Einstufung: {bew_t[:60]}..."))
     pdf.cell(90, 7, f"V = {v_final:.2f} Liter", ln=True, align='R')
     
     return pdf.output(dest='S').encode('latin-1')
