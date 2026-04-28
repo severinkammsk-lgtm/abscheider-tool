@@ -4,13 +4,13 @@ from datetime import datetime
 from fpdf import FPDF
 import io
 
-# 1. Grundkonfiguration
+# 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS: Entfernt Buttons & optimiert mobile Ansicht
+# 2. CSS-HACK: ENTFERNT + UND - BUTTONS UND OPTIMIERT DIE EINGABE
 st.markdown("""
     <style>
-    input[::-webkit-outer-spin-button],
+    input::-webkit-outer-spin-button,
     input[::-webkit-inner-spin-button] { -webkit-appearance: none !important; margin: 0 !important; }
     input[type=number] { -moz-appearance: textfield !important; }
     .stNumberInput div div input { text-align: center !important; font-size: 20px !important; }
@@ -101,7 +101,6 @@ st.divider()
 # --- 4. ERGEBNIS NS ---
 st.header("4. Ergebnis Nenngröße")
 ns = (qr + fx * qs) * fd * ff
-st.latex(rf"NS = (Q_r + f_x \cdot Q_s) \cdot f_d \cdot f_f")
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
 st.success(f"### Erforderliche Nenngröße: NS {ns:.2f}")
 
@@ -129,7 +128,7 @@ else:
         st.info("**Bewertung:** - Waschplätze für Baustellefahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände")
         v_sf = (300 * ns) / (fd * ff)
 
-# Deckelung auf 5000 Liter
+# Deckelung auf maximal 5000 Liter
 if v_sf > 5000.0:
     v_sf = 5000.0
 
@@ -165,4 +164,13 @@ def create_pdf_bytes():
     
     return pdf.output(dest='S').encode('latin-1')
 
-if kunden_name and k
+if kunden_name and kunden_adresse:
+    pdf_bytes = create_pdf_bytes()
+    st.download_button(
+        label="📄 PDF Protokoll erstellen & herunterladen",
+        data=pdf_bytes,
+        file_name=f"Bemessung_{kunden_name}.pdf",
+        mime="application/pdf"
+    )
+else:
+    st.info("Bitte Kundendaten eingeben, um das PDF zu erstellen.")
