@@ -17,7 +17,7 @@ st.markdown("""
     input[type=number] {
         -moz-appearance: textfield !important;
     }
-    /* Zentriert den Text und vergrößert die Schrift für mobile Geräte */
+    /* Zentriert den Text und optimiert die Anzeige */
     .stNumberInput div div input {
         text-align: center !important;
         font-size: 20px !important;
@@ -37,21 +37,19 @@ st.divider()
 
 # --- 1. REGENABFLUSS (QR) ---
 st.header("1. Regenabfluss (Qr)")
-st.warning("Hinweis: Nur unüberdachte Flächen angeben, auf die Regen fallen kann!")
-
 r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0, format="%.1f")
 
 def flaeche_zeile(label, key_suffix, wind_faktor=1.0):
     st.markdown(f"**{label}**")
     c1, c2, c3 = st.columns([3, 3, 2])
     with c1:
-        l = st.number_input("Länge [m]", key=f"l_{key_suffix}", min_value=0.0, format="%.2f", step=0.0)
+        l = st.number_input("Länge [m]", key=f"l_{key_suffix}", min_value=0.0, format="%.2f")
     with c2:
-        b = st.number_input("Breite [m]", key=f"b_{key_suffix}", min_value=0.0, format="%.2f", step=0.0)
-    ergebnis = l * b * wind_faktor
+        b = st.number_input("Breite [m]", key=f"b_{key_suffix}", min_value=0.0, format="%.2f")
+    res = l * b * wind_faktor
     with c3:
-        st.markdown(f"<div style='padding-top:35px'>= <b>{ergebnis:.2f} m²</b></div>", unsafe_allow_html=True)
-    return ergebnis
+        st.markdown(f"<div style='padding-top:35px'>= <b>{res:.2f} m²</b></div>", unsafe_allow_html=True)
+    return res
 
 a_tank = flaeche_zeile("Tankfläche", "tank")
 a_hof = flaeche_zeile("Hof- / Freifläche", "hof")
@@ -69,19 +67,16 @@ st.divider()
 st.header("2. Schmutzwasser (Qs)")
 col_s1, col_s2 = st.columns(2)
 with col_s1:
-    dn15 = st.number_input("Ventil DN 15 (0,5 l/s)", min_value=0, step=0) * 0.5
-    dn20 = st.number_input("Ventil DN 20 (1,0 l/s)", min_value=0, step=0) * 1.0
-    dn25 = st.number_input("Ventil DN 25 (1,7 l/s)", min_value=0, step=0) * 1.7
+    dn15 = st.number_input("Ventil DN 15 (0,5 l/s)", min_value=0) * 0.5
+    dn20 = st.number_input("Ventil DN 20 (1,0 l/s)", min_value=0) * 1.0
+    dn25 = st.number_input("Ventil DN 25 (1,7 l/s)", min_value=0) * 1.7
 with col_s2:
     wasch_typ = st.selectbox("Waschanlage", ["Keine", "Portalwaschanlage", "Waschstraße"])
-    anz_hd = st.number_input("Anzahl HD-Reiniger", min_value=0, step=0)
+    anz_hd = st.number_input("Anzahl HD-Reiniger", min_value=0)
 
-is_wash_plant = wasch_typ in ["Portalwaschanlage", "Waschstraße"]
-qs_w = 2.0 if is_wash_plant else 0.0
-if is_wash_plant:
-    qs_hd = anz_hd * 1.0
-else:
-    qs_hd = 2.0 + (anz_hd - 1) * 1.0 if anz_hd > 0 else 0.0
+is_wash = wasch_typ in ["Portalwaschanlage", "Waschstraße"]
+qs_w = 2.0 if is_wash else 0.0
+qs_hd = anz_hd * 1.0 if is_wash else (2.0 + (anz_hd - 1) * 1.0 if anz_hd > 0 else 0.0)
 
 qs = dn15 + dn20 + dn25 + qs_w + qs_hd
 st.info(f"**Gesamt Qs = {qs:.2f} l/s**")
@@ -90,8 +85,8 @@ st.divider()
 
 # --- 3. FAKTOREN ---
 st.header("3. Faktoren & Anlagentyp")
-anlagentyp = st.selectbox("Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
-fx = 2.0 if (a_wasch > 0 or is_wash_plant or anz_hd > 0) else 1.0
+anlagentyp = st.selectbox("Gewählter Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
+fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0) else 1.0
 
 dichte = st.selectbox("Dichte (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
 fd_map = {
@@ -103,4 +98,16 @@ fd = fd_map[dichte][anlagentyp]
 
 fame = st.selectbox("FAME-Anteil (%)", ["bis 5 %", "5 - 10 %", "über 10 %"])
 ff_map = {
-    "bis 5 %": {"S
+    "bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0},
+    "5 - 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0},
+    "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}
+}
+ff = ff_map[fame][anlagentyp]
+
+st.divider()
+
+# --- 4. ERGEBNIS NS ---
+st.header("4. Ergebnis Nenngröße")
+ns = (qr + fx * qs) * fd * ff
+st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
+st.success(f"### Erforder
