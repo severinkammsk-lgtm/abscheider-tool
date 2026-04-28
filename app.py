@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 
-# 1. Grundkonfiguration
+# 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
-# 2. CSS-BLOCK: Buttons entfernen & Mobile-Optimierung
+# 2. CSS: Buttons entfernen & Mobile-Tastatur erzwingen
 st.markdown("""
     <style>
-    /* Entfernt die Pfeile/Buttons komplett */
+    /* Entfernt die Pfeile/Buttons in allen Browsern */
     input::-webkit-outer-spin-button,
     input[::-webkit-inner-spin-button] {
         -webkit-appearance: none !important;
@@ -109,4 +109,31 @@ st.divider()
 st.header("4. Berechnungsergebnis")
 ns = (qr + fx * qs) * fd * ff
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
-st.success(f"###
+st.success(f"### Erforderliche Nenngröße: NS {ns:.2f}")
+
+st.divider()
+
+# --- 5. SCHLAMMFANG (NACH DEINER VORLAGE) ---
+st.header("5. Schlammfangvolumen (V_SF)")
+
+if is_wash:
+    v_sf = 5000.0
+    st.warning("⚠️ Waschstraße / Portalwaschanlage: Erforderliches Volumen = 5.000 Liter")
+else:
+    anfall = st.radio("Erwarteter Schlammanfall", ["Kein", "Gering", "Mittel", "Groß"], index=2, horizontal=True)
+    
+    if anfall == "Kein":
+        v_sf = 0.0
+    else:
+        # Faktorwahl
+        f_sf = 100 if anfall == "Gering" else 300 if anfall == "Groß" else 200
+        # Formel aus dem Bild: Faktor * NS / fd / ff
+        v_sf = (f_sf * ns) / (fd * ff)
+        
+        # Mindestwerte aus dem Bild prüfen
+        if anfall == "Mittel":
+            v_sf = max(v_sf, 600.0)
+        elif anfall == "Groß":
+            v_sf = max(v_sf, 5000.0)
+
+st.metric("Erforderliches Schlammfangvolumen", f"{v_sf:.2f} Liter")
