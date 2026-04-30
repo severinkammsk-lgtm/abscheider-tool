@@ -7,12 +7,12 @@ import math
 from geopy.geocoders import Nominatim
 
 # 1. Seiteneinstellungen
-st.set_page_config(page_title="Ölabscheider-Bemessung PRO", layout="centered")
+st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
 
 # Geocoding Hilfsfunktion für KOSTRA
 def get_coords(address):
     try:
-        geolocator = Nominatim(user_agent="abscheider_app_oil_final")
+        geolocator = Nominatim(user_agent="abscheider_app")
         location = geolocator.geocode(address)
         if location:
             return location.latitude, location.longitude
@@ -30,7 +30,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Hilfsfunktionen
+# Hilfsfunktionen zur Berechnung
 def calc_valve_flow(count, values):
     res = 0.0
     for i in range(count):
@@ -48,7 +48,7 @@ def get_next_standard_ns(val):
     return val
 
 # --- PROJEKTDATEN ---
-st.title("🛢️ Ölabscheider-Bemessung (DIN 1999-100)")
+st.title("📋 Abscheider-Bemessung (DIN 1999-100)")
 kunden_name = st.text_input("Name Kunde", placeholder="Vollständiger Name")
 kunden_strasse = st.text_input("Straße und Hausnummer", placeholder="Musterstraße 1")
 kunden_ort = st.text_input("PLZ und Ort", placeholder="12345 Musterstadt")
@@ -59,29 +59,30 @@ st.divider()
 st.header("1. Regenabfluss (Qr)")
 
 with st.expander("📍 Regenspende über Adresse ermitteln (KOSTRA-DWD)"):
-    st.write("Die Suche startet automatisch, sobald PLZ und Ort oben ausgefüllt sind.")
-    if kunden_ort:
-        full_address = f"{kunden_strasse}, {kunden_ort}".strip(", ")
+    st.write("Die Suche startet automatisch, sobald PLZ und Ort ausgefüllt sind.")
+    search_str = st.text_input("Straße und Hausnummer (Suche)", value=kunden_strasse)
+    search_city = st.text_input("PLZ und Ort (Suche)", value=kunden_ort)
+    
+    if search_str and search_city:
+        full_address = f"{search_str}, {search_city}"
         lat, lon = get_coords(full_address)
         if lat:
             kostra_url = f"https://www.openko.de/maps/kostra_dwd_2020.html#15/{lat}/{lon}"
             st.success(f"Standort gefunden: {lat:.4f}, {lon:.4f}")
-            st.markdown(f"[👉 **KOSTRA-Daten für diesen Standort öffnen**]({kostra_url})")
+            st.markdown(f"[👉 **KOSTRA-Daten auf OpenKO.de öffnen**]({kostra_url})")
         else:
-            st.warning("Adresse konnte nicht genau aufgelöst werden.")
+            st.warning("Standort nicht gefunden. Bitte Eingabe prüfen.")
 
 r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0, format="%.1f")
 
+# Flächenberechnung
 def flaeche_zeile(label, key_suffix):
     st.markdown(f"**{label}**")
     c1, c2, c3 = st.columns([3, 3, 2])
-    with c1:
-        l = st.number_input("Länge [m]", key=f"l_{key_suffix}", min_value=0.0, format="%.2f")
-    with c2:
-        b = st.number_input("Breite [m]", key=f"b_{key_suffix}", min_value=0.0, format="%.2f")
+    with c1: l = st.number_input("Länge [m]", key=f"l_{key_suffix}", min_value=0.0)
+    with c2: b = st.number_input("Breite [m]", key=f"b_{key_suffix}", min_value=0.0)
     res = l * b
-    with c3:
-        st.markdown(f"<div style='padding-top:35px'>= <b>{res:.2f} m²</b></div>", unsafe_allow_html=True)
+    with c3: st.markdown(f"<div style='padding-top:35px'>= <b>{res:.2f} m²</b></div>", unsafe_allow_html=True)
     return res
 
 a_hof = flaeche_zeile("Hof- / Freifläche", "hof")
@@ -94,15 +95,15 @@ st.info(f"Gesamtfläche: {total_area:.2f} m² | **Qr = {qr:.2f} l/s**")
 
 st.divider()
 
-# --- 2. SCHMUTZWASSER ---
+# --- 2. SCHMUTZWASSER (Inkl. Zoll-Maßen & Info) ---
 st.header("2. Schmutzwasser (Qs)")
 
-with st.expander("⚠️ Wichtig: Wie messe ich die Ventildimension richtig?"):
+with st.expander("⚠️ Wichtig: Messung der Ventildimension"):
     st.markdown("""
-    Messen Sie das **Anschlussgewinde zur Wand**! Die Schlauchverschraubung am Auslauf ist immer eine Dimension größer.
-    *   **Ventil 1/2\"** (DN 15) -> Schlauchanschluss ist 3/4\"
-    *   **Ventil 3/4\"** (DN 20) -> Schlauchanschluss ist 1\"
-    *   **Ventil 1\"** (DN 25) -> Schlauchanschluss ist 1 1/4\"
+    Messen Sie das **Anschlussgewinde zur Wand** (Eingang), nicht die Schlauchverschraubung (Ausgang)!
+    *   **Ventil 1/2\"** (DN 15) -> hat oft 3/4\" am Schlauch.
+    *   **Ventil 3/4\"** (DN 20) -> hat oft 1\" am Schlauch.
+    *   **Ventil 1\"** (DN 25) -> hat oft 1 1/4\" am Schlauch.
     """)
 
 col_s1, col_s2 = st.columns(2)
@@ -122,7 +123,6 @@ with col_s2:
 is_wash = wasch_typ in ["Portalwaschanlage", "Waschstraße"]
 qs_w = 2.0 if is_wash else 0.0
 qs_hd = (anz_hd * 1.0 if is_wash else (2.0 + (anz_hd - 1) * 1.0)) if anz_hd > 0 else 0.0
-        
 qs = qs1_total + qs_w + qs_hd
 st.info(f"Gesamt Schmutzwasser **Qs = {qs:.2f} l/s**")
 
@@ -130,12 +130,10 @@ st.divider()
 
 # --- 3. FAKTOREN ---
 st.header("3. Faktoren & Anlagentyp")
-t1 = "Schlammfang - Benzinabscheider - Probenahmeschacht"
-t2 = "Schlammfang - Koaleszenzabscheider - Probenahmeschacht"
-t3 = "Schlammfang - Benzin- & Koaleszenzabscheider - Probenahmeschacht"
+t1, t2, t3 = "Schlammfang - Benzinabscheider - Probenahme", "Schlammfang - Koaleszenzabscheider - Probenahme", "Schlammfang - Benzin- & Koaleszenzabscheider - Probenahme"
 at = st.selectbox("Anlagentyp", [t1, t2, t3])
-
 fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0 or qs1_total > 0) else 1.0
+
 dichte = st.selectbox("Dichte der Leichtflüssigkeit (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
 fd_map = {"bis 0,85": 1.0, "0,85 - 0,90": {t1: 2.0, t2: 1.5, t3: 1.0}, "0,90 - 0,95": {t1: 3.0, t2: 2.0, t3: 1.0}}
 fd = fd_map[dichte] if dichte == "bis 0,85" else fd_map[dichte][at]
@@ -144,48 +142,40 @@ fame = st.selectbox("Biodiesel (FAME)", ["bis 5 %", "über 5 - 10 %", "über 10 
 ff_map = {"bis 5 %": {t1: 1.25, t2: 1.0, t3: 1.0}, "über 5 - 10 %": {t1: 1.50, t2: 1.25, t3: 1.0}, "über 10 %": {t1: 1.75, t2: 1.50, t3: 1.25}}
 ff = ff_map[fame][at]
 
-st.divider()
-
-# --- 4. ERGEBNIS NS ---
+# --- 4. ERGEBNIS ---
 st.header("4. Ergebnis Nenngröße")
-ns_raw = (qr + fx * qs) * fd * ff
-ns = math.ceil(ns_raw * 100) / 100 
-standard_ns = get_next_standard_ns(ns)
-
+ns = math.ceil(((qr + fx * qs) * fd * ff) * 100) / 100 
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
-st.success(f"### Erforderliche Nenngröße: **NS {standard_ns}**")
+st.success(f"### Erforderliche Nenngröße: **NS {get_next_standard_ns(ns)}**")
 
-st.divider()
-
-# --- 5. SCHLAMMFANGVOLUMEN ---
+# --- 5. SCHLAMMFANG ---
 st.header("5. Schlammfangvolumen")
-anfall_opt = {"Kein 0%": 0, "Gering 100%": 100, "Mittel 200%": 200, "Groß 300%": 300}
-selection = st.radio("Schlammanfall auswählen:", list(anfall_opt.keys()), index=0)
-sf_faktor = anfall_opt[selection]
+anfall = st.radio("Schlammanfall:", ["Kein (0%)", "Gering (100%)", "Mittel (200%)", "Groß (300%)"], index=0)
+sf_faktor = {"Kein (0%)": 0, "Gering (100%)": 100, "Mittel (200%)": 200, "Groß (300%)": 300}[anfall]
 v_final = (sf_faktor * ns) / fd if (fd > 0 and sf_faktor > 0) else 0.0
-st.metric("Erforderliches Volumen", f"{v_final:.2f} Liter")
-
-st.divider()
+st.metric("Erforderliches Schlammvolumen", f"{v_final:.2f} Liter")
 
 # --- PDF GENERIERUNG ---
 def create_pdf():
     pdf = FPDF()
     pdf.add_page()
-    def txt(s): return s.encode('latin-1', 'replace').decode('latin-1')
+    def t(s): return s.encode('latin-1', 'replace').decode('latin-1')
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(190, 10, txt("BEMESSUNGSPROTOKOLL: ÖLABSCHEIDER"), ln=True, align='C')
-    pdf.set_font("Arial", '', 10)
-    pdf.cell(190, 6, txt("Gemäß DIN 1999-100"), ln=True, align='C')
-    pdf.ln(10)
+    pdf.cell(190, 10, t("BEMESSUNGSPROTOKOLL ABSCHEIDER"), ln=True, align='C')
+    pdf.set_font("Arial", '', 11)
+    pdf.ln(5)
     for label, val in [("Kunde:", kunden_name), ("Anschrift:", kunden_strasse), ("Ort:", kunden_ort), ("Datum:", datetime.now().strftime('%d.%m.%Y'))]:
-        pdf.cell(45, 8, txt(label), border='B')
-        pdf.cell(145, 8, txt(f" {val}"), border='B', ln=True)
+        pdf.cell(45, 8, t(label), border='B')
+        pdf.cell(145, 8, t(f" {val}"), border='B', ln=True)
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 8, txt(f" Ergebnis: NS {standard_ns}"), ln=True, fill=True)
+    pdf.cell(190, 8, t(" Schmutzwasser-Details (Ventile)"), ln=True, fill=True)
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(190, 7, t(f"- DN 15 (1/2\"): {v15_c} Stk. | - DN 20 (3/4\"): {v20_c} Stk. | - DN 25 (1\"): {v25_c} Stk."), ln=True)
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(190, 10, t(f"ERGEBNIS: NS {get_next_standard_ns(ns)}"), ln=True, align='R')
     return pdf.output(dest='S').encode('latin-1')
 
 if kunden_name and kunden_strasse and kunden_ort:
-    st.download_button(label="📄 PDF Protokoll herunterladen", data=create_pdf(), file_name=f"Bemessung_{kunden_name}.pdf", mime="application/pdf")
-else:
-    st.info("Bitte Kundendaten eingeben für PDF.")
+    st.download_button("📄 PDF herunterladen", create_pdf(), f"Bemessung_{kunden_name}.pdf", "application/pdf")
