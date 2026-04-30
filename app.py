@@ -4,7 +4,7 @@ from datetime import datetime
 from fpdf import FPDF
 import io
 import math
-from geopy.geocoders import Nominatim  # Für die Adresssuche
+from geopy.geocoders import Nominatim
 
 # 1. Seiteneinstellungen
 st.set_page_config(page_title="Abscheider-Bemessung PRO", layout="centered")
@@ -20,7 +20,7 @@ def get_coords(address):
     except:
         return None, None
 
-# 2. CSS & Header (unverändert)
+# 2. CSS: Optimierung für fette Ergebnisse und saubere Eingabe
 st.markdown("""
     <style>
     input[::-webkit-outer-spin-button],
@@ -30,8 +30,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ... (Funktionen calc_valve_flow und get_next_standard_ns unverändert) ...
-
+# Hilfsfunktionen
 def calc_valve_flow(count, values):
     res = 0.0
     for i in range(count):
@@ -51,36 +50,36 @@ def get_next_standard_ns(val):
 # --- PROJEKTDATEN ---
 st.title("📋 Abscheider-Bemessung (DIN 1999-100)")
 kunden_name = st.text_input("Name Kunde", placeholder="Vollständiger Name")
-col_adr1, col_adr2 = st.columns(2)
-with col_adr1:
-    kunden_strasse = st.text_input("Straße, Hausnummer", placeholder="Musterstraße 1")
-with col_adr2:
-    kunden_ort = st.text_input("Postleitzahl, Ort", placeholder="12345 Musterstadt")
+
+# Adressfelder untereinander
+kunden_strasse = st.text_input("Straße, Hausnummer", placeholder="Musterstraße 1")
+kunden_ort = st.text_input("Postleitzahl, Ort", placeholder="12345 Musterstadt")
 
 st.divider()
 
-# --- 1. REGENABFLUSS (MIT KOSTRA-SUPPORT) ---
+# --- 1. REGENABFLUSS ---
 st.header("1. Regenabfluss (Qr)")
 
-# KOSTRA-DWD Integration
+# KOSTRA-DWD Integration mit kombinierter Adresse
 with st.expander("📍 Regenspende über Adresse ermitteln (KOSTRA-DWD)"):
     st.write("Suche den Standort, um den passenden KOSTRA-Link zu generieren.")
-    search_addr = st.text_input("Standort für KOSTRA-Abfrage", value=f"{kunden_strasse}, {kunden_ort}" if kunden_strasse else "")
+    # Kombiniert Straße und Ort für eine präzise Suche
+    default_search = f"{kunden_strasse}, {kunden_ort}".strip(", ")
+    search_addr = st.text_input("Standort für KOSTRA-Abfrage", value=default_search)
     
     if search_addr:
         lat, lon = get_coords(search_addr)
         if lat:
-            # Generiere Link zu OpenKO mit den Koordinaten
             kostra_url = f"https://www.openko.de/maps/kostra_dwd_2020.html#15/{lat}/{lon}"
             st.success(f"Standort gefunden: {lat:.4f}, {lon:.4f}")
             st.markdown(f"[👉 **KOSTRA-Daten für diesen Standort auf OpenKO.de öffnen**]({kostra_url})")
-            st.info("Hinweis: Bitte trage den dort ermittelten Wert für die Regenspende (meist $r_{15,1}$) unten manuell ein.")
+            st.info("Hinweis: Bitte trage den dort ermittelten Wert für die Regenspende unten manuell ein.")
         else:
-            st.warning("Adresse konnte nicht aufgelöst werden. Bitte manuell suchen.")
+            st.warning("Adresse konnte nicht genau aufgelöst werden. Bitte manuell prüfen.")
 
-r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0, format="%.1f", help="Wert aus KOSTRA-DWD 2020 entnehmen (z. B. $r_{15,1}$)")
+r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0, format="%.1f")
 
-# --- FLÄCHENBERECHNUNG (wie vorher) ---
+# --- Flächenberechnung ---
 def flaeche_zeile(label, key_suffix, info=""):
     st.markdown(f"**{label}**")
     if info: st.caption(info)
@@ -119,7 +118,7 @@ st.info(f"Gesamtfläche: {total_area:.2f} m² | **Qr = {qr:.2f} l/s**")
 
 st.divider()
 
-# --- 2. SCHMUTZWASSER (unverändert) ---
+# --- 2. SCHMUTZWASSER ---
 st.header("2. Schmutzwasser (Qs)")
 col_s1, col_s2 = st.columns(2)
 with col_s1:
@@ -147,7 +146,7 @@ st.info(f"Gesamt Schmutzwasser **Qs = {qs:.2f} l/s**")
 
 st.divider()
 
-# --- 3. FAKTOREN & ANLAGENTYP (mit Hilfe-Texten) ---
+# --- 3. FAKTOREN & ANLAGENTYP ---
 st.header("3. Faktoren & Anlagentyp")
 
 t1 = "Schlammfang - Benzinabscheider - Probenahmeschacht"
@@ -179,12 +178,13 @@ ns_raw = (qr + fx * qs) * fd * ff
 ns = math.ceil(ns_raw * 100) / 100 
 standard_ns = get_next_standard_ns(ns)
 
+# Rechenformel als LaTeX gemäß Anweisung
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
 st.success(f"### Erforderliche Nenngröße: **NS {ns:.2f}**")
 
 st.divider()
 
-# --- 5. SCHLAMMFANGVOLUMEN (unverändert) ---
+# --- 5. SCHLAMMFANGVOLUMEN ---
 st.header("5. Schlammfangvolumen")
 anfall_opt = {"Kein 0%": 0, "Gering 100%": 100, "Mittel 200%": 200, "Groß 300%": 300}
 selection = st.radio("Schlammanfall auswählen:", list(anfall_opt.keys()), index=0)
@@ -197,19 +197,28 @@ st.metric("Erforderliches Volumen", f"{v_final:.2f} Liter")
 
 st.divider()
 
-# --- PDF GENERIERUNG (unverändert) ---
+# --- PDF GENERIERUNG ---
 def create_pdf():
     pdf = FPDF()
     pdf.add_page()
     def txt(s): return s.encode('latin-1', 'replace').decode('latin-1')
+
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(190, 10, txt("BEMESSUNGSPROTOKOLL: ABSCHEIDERANLAGE"), ln=True, align='C')
-    # ... (Restliche PDF Logik wie zuvor) ...
-    pdf.set_font("Arial", '', 11)
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(190, 6, txt("Gemäß DIN 1999-100 / DIN EN 858-2"), ln=True, align='C')
     pdf.ln(10)
-    pdf.cell(190, 8, txt(f"Kunde: {kunden_name}"), ln=True)
-    pdf.cell(190, 8, txt(f"Berechnete NS: {ns}"), ln=True)
-    pdf.cell(190, 8, txt(f"Regenspende: {r_spende} l/(s*ha)"), ln=True)
+    
+    # Projektdaten im PDF
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(190, 8, txt(" 1. Projektinformationen"), ln=True, fill=True)
+    pdf.set_font("Arial", '', 11)
+    for label, val in [("Kunde:", kunden_name), ("Anschrift:", kunden_strasse), ("Ort:", kunden_ort), ("Datum:", datetime.now().strftime('%d.%m.%Y'))]:
+        pdf.cell(40, 8, txt(label), border='B')
+        pdf.cell(150, 8, txt(f" {val if val else '---'}"), border='B', ln=True)
+    
+    # ... Restliche PDF-Logik ...
     return pdf.output(dest='S').encode('latin-1')
 
 if kunden_name and kunden_strasse and kunden_ort:
