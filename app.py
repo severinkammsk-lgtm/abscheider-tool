@@ -117,25 +117,44 @@ st.info(f"Gesamt Schmutzwasser **Qs = {qs:.2f} l/s**")
 
 st.divider()
 
-# --- 3. FAKTOREN ---
+# --- 3. FAKTOREN & ANLAGENTYP ---
 st.header("3. Faktoren & Anlagentyp")
-at = st.selectbox("Anlagentyp", ["S-II-P", "S-I-P", "S-II-I-P"])
+
+# Bezeichnungen vollständig ausschreiben
+t1 = "Schlammfang - Benzinabscheider - Probenahmeschacht"
+t2 = "Schlammfang - Koaleszenzabscheider - Probenahmeschacht"
+t3 = "Schlammfang - Benzin- & Koaleszenzabscheider - Probenahmeschacht"
+
+at = st.selectbox("Anlagentyp", [t1, t2, t3])
+
 fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0 or qs1_total > 0) else 1.0
 dichte = st.selectbox("Dichte der Leichtflüssigkeit (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
-fd_map = {"bis 0,85": 1.0, "0,85 - 0,90": {"S-II-P": 2.0, "S-I-P": 1.5, "S-II-I-P": 1.0}, "0,90 - 0,95": {"S-II-P": 3.0, "S-I-P": 2.0, "S-II-I-P": 1.0}}
+
+# Faktoren-Maps an die neuen Bezeichnungen anpassen
+fd_map = {
+    "bis 0,85": 1.0, 
+    "0,85 - 0,90": {t1: 2.0, t2: 1.5, t3: 1.0}, 
+    "0,90 - 0,95": {t1: 3.0, t2: 2.0, t3: 1.0}
+}
 fd = fd_map[dichte] if dichte == "bis 0,85" else fd_map[dichte][at]
+
 fame = st.selectbox("Biodiesel (FAME)", ["bis 5 %", "über 5 - 10 %", "über 10 %"])
-ff_map = {"bis 5 %": {"S-II-P": 1.25, "S-I-P": 1.0, "S-II-I-P": 1.0}, "über 5 - 10 %": {"S-II-P": 1.50, "S-I-P": 1.25, "S-II-I-P": 1.0}, "über 10 %": {"S-II-P": 1.75, "S-I-P": 1.50, "S-II-I-P": 1.25}}
+ff_map = {
+    "bis 5 %": {t1: 1.25, t2: 1.0, t3: 1.0}, 
+    "über 5 - 10 %": {t1: 1.50, t2: 1.25, t3: 1.0}, 
+    "über 10 %": {t1: 1.75, t2: 1.50, t3: 1.25}
+}
 ff = ff_map[fame][at]
 
 st.divider()
 
-# --- 4. ERGEBNIS NS ---
+# --- 4. ERGEBNIS NENNGRÖSSE ---
 st.header("4. Ergebnis Nenngröße")
 ns_raw = (qr + fx * qs) * fd * ff
 ns = math.ceil(ns_raw * 100) / 100 
 standard_ns = get_next_standard_ns(ns)
 
+# Rechenformel gemäß Vorgabe als LaTeX
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
 st.success(f"### Erforderliche Nenngröße: **NS {ns:.2f}**")
 
@@ -152,7 +171,7 @@ v_final = (sf_faktor * ns) / fd if (fd > 0 and sf_faktor > 0) else 0.0
 bew_map = {
     0: "Kondensat",
     100: "Regenauffangflächen mit geringem Schmutzanfall (z. B. Auffangtassen auf Tankfeldern)",
-    200: "Tankstellen mit PKW-Wäsche von Hand, Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe",
+    200: "Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe",
     300: "Waschplätze für Baustellenfahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände, automatische Waschanlagen"
 }
 bew_t = bew_map[sf_faktor]
