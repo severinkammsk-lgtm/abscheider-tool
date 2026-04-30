@@ -127,7 +127,23 @@ t3 = "Schlammfang - Benzin- & Koaleszenzabscheider - Probenahmeschacht"
 at = st.selectbox("Anlagentyp", [t1, t2, t3])
 
 fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0 or qs1_total > 0) else 1.0
+
+# --- NEU: INFO ZUR DICHTE ---
 dichte = st.selectbox("Dichte der Leichtflüssigkeit (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
+
+with st.expander("ℹ️ Hilfe zur Auswahl der Dichte"):
+    st.markdown("""
+    Die Dichte bestimmt den Faktor **fd**. Je schwerer die Flüssigkeit, desto größer muss der Abscheider sein:
+    *   **bis 0,85 g/cm³:**
+        *   **Benzin:** ca. 0,72 – 0,78 g/cm³
+        *   **Diesel / Heizöl EL:** ca. 0,82 – 0,85 g/cm³
+        *   *Standardfall für fast alle Tankstellen und Werkstätten.*
+    *   **0,85 - 0,90 g/cm³:**
+        *   **Biodiesel (RME):** ca. 0,88 g/cm³
+        *   **Schwerere Schmieröle:** z.B. bestimmte Hydrauliköle.
+    *   **0,90 - 0,95 g/cm³:**
+        *   **Spezielle Schweröle** oder chemische Leichtflüssigkeiten.
+    """)
 
 fd_map = {
     "bis 0,85": 1.0, 
@@ -136,21 +152,14 @@ fd_map = {
 }
 fd = fd_map[dichte] if dichte == "bis 0,85" else fd_map[dichte][at]
 
-# --- NEU: INFO ZU TREIBSTOFFSORTEN ---
 fame = st.selectbox("Biodiesel (FAME)", ["bis 5 %", "über 5 - 10 %", "über 10 %"])
 
 with st.expander("ℹ️ Hilfe zur Auswahl der Treibstoffsorte (Bio-Anteil)"):
     st.markdown("""
     Die Auswahl richtet sich nach dem Anteil an **Fettsäuremethylester (FAME)** im Kraftstoff:
-    *   **bis 5 %:** 
-        *   **Super E5 / Super Plus:** Enthält bis zu 5 % Bio-Ethanol (wirkt chemisch anders als FAME, wird hier aber oft so eingestuft).
-        *   **HVO / GTL:** Synthetische Kraftstoffe enthalten meist 0 % FAME.
-    *   **über 5 - 10 %:**
-        *   **Diesel (B7):** Standard an dt. Tankstellen (bis 7 % FAME). **Empfohlene Wahl für Standard-Tankstellen.**
-        *   **Diesel (B10):** Neuerer Diesel mit bis zu 10 % FAME.
-        *   **Super E10:** Enthält bis zu 10 % Bio-Ethanol.
-    *   **über 10 %:**
-        *   **B20 / B30 / B100:** Spezielle Fuhrpark-Kraftstoffe mit sehr hohem Biodiesel-Anteil.
+    *   **bis 5 %:** Super E5, Super Plus, HVO/GTL (synthetisch).
+    *   **über 5 - 10 %:** **Diesel (B7)** (Standard in DE), Diesel (B10), Super E10.
+    *   **über 10 %:** B20, B30, B100 (reiner Biodiesel).
     """)
 
 ff_map = {
@@ -168,6 +177,7 @@ ns_raw = (qr + fx * qs) * fd * ff
 ns = math.ceil(ns_raw * 100) / 100 
 standard_ns = get_next_standard_ns(ns)
 
+# Rechenformel gemäß Vorgabe
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
 st.success(f"### Erforderliche Nenngröße: **NS {ns:.2f}**")
 
@@ -183,9 +193,9 @@ v_final = (sf_faktor * ns) / fd if (fd > 0 and sf_faktor > 0) else 0.0
 
 bew_map = {
     0: "Kondensat",
-    100: "Regenauffangflächen mit geringem Schmutzanfall (z. B. Auffangtassen auf Tankfeldern)",
-    200: "Teilewäsche, Omnibus-Waschstände, Abwasser aus Reparaturwerkstätten, Fahrzeugabstellflächen, Kraftwerke, Maschinenbaubetriebe",
-    300: "Waschplätze für Baustellenfahrzeuge, Baumaschinen, landwirtschaftliche Maschinen, LKW-Waschstände, automatische Waschanlagen"
+    100: "Regenauffangflächen mit geringem Schmutzanfall",
+    200: "Teilewäsche, Werkstätten, Fahrzeugabstellflächen, Kraftwerke",
+    300: "Waschplätze für Baumaschinen, LKW-Waschstände, automatische Waschanlagen"
 }
 bew_t = bew_map[sf_faktor]
 st.info(f"**Bewertung:** {bew_t}")
@@ -231,7 +241,7 @@ def create_pdf():
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, txt(" 3. Schmutzwasserabfluss (Qs)"), ln=True, fill=True)
     pdf.set_font("Arial", '', 10)
-    pdf.cell(100, 6, txt(f" Ventile (Tab. 1): {qs1_total:.2f} l/s | Waschanlage/HD: {qs_w+qs_hd:.2f} l/s"))
+    pdf.cell(100, 6, txt(f" Ventile: {qs1_total:.2f} l/s | Waschanlage/HD: {qs_w+qs_hd:.2f} l/s"))
     pdf.ln(6)
     pdf.set_font("Arial", 'B', 11)
     pdf.cell(100, 8, txt(" Gesamt-Schmutzwasserabfluss:"), border=0)
@@ -242,7 +252,7 @@ def create_pdf():
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, txt(" 4. Bemessungsparameter"), ln=True, fill=True)
     pdf.set_font("Arial", '', 10)
-    pdf.multi_cell(190, 6, txt(f"Anlagentyp: {at} | Erschwernisfaktor fx: {fx} | Dichtefaktor fd: {fd} | FAME-Faktor ff: {ff}"))
+    pdf.multi_cell(190, 6, txt(f"Anlagentyp: {at}\nDichte: {dichte} | Biodiesel: {fame}\nErschwernisfaktor fx: {fx} | fd: {fd} | ff: {ff}"))
     pdf.ln(3)
 
     # 5. Nenngröße
