@@ -60,17 +60,16 @@ st.divider()
 # --- 1. REGENABFLUSS ---
 st.header("1. Regenabfluss (Qr)")
 
-# KOSTRA-DWD Integration mit verfeinerter Suche
+# KOSTRA-DWD Integration mit verzögerter Suche
 with st.expander("📍 Regenspende über Adresse ermitteln (KOSTRA-DWD)"):
-    st.write("Suche den Standort, um den passenden KOSTRA-Link zu generieren.")
+    st.write("Geben Sie die Adresse ein. Die Suche startet automatisch, sobald PLZ und Ort ausgefüllt sind.")
     
-    # Verfeinerte Suche durch zwei separate Eingabefelder
     search_str = st.text_input("Straße und Hausnummer (Suche)", value=kunden_strasse)
     search_city = st.text_input("PLZ und Ort (Suche)", value=kunden_ort)
     
-    full_address = f"{search_str}, {search_city}".strip(", ")
-    
-    if full_address:
+    # CRITICAL CHANGE: Suche startet erst, wenn search_city nicht leer ist
+    if search_str and search_city:
+        full_address = f"{search_str}, {search_city}"
         lat, lon = get_coords(full_address)
         if lat:
             kostra_url = f"https://www.openko.de/maps/kostra_dwd_2020.html#15/{lat}/{lon}"
@@ -79,6 +78,8 @@ with st.expander("📍 Regenspende über Adresse ermitteln (KOSTRA-DWD)"):
             st.info("Hinweis: Bitte trage den dort ermittelten Wert für die Regenspende unten manuell ein.")
         else:
             st.warning("Standort konnte nicht gefunden werden. Bitte Eingabe prüfen.")
+    elif search_str and not search_city:
+        st.info("Bitte geben Sie jetzt noch PLZ und Ort ein, um die Suche zu starten.")
 
 r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0, format="%.1f")
 
@@ -221,7 +222,6 @@ def create_pdf():
         pdf.cell(40, 8, txt(label), border='B')
         pdf.cell(150, 8, txt(f" {val if val else '---'}"), border='B', ln=True)
     
-    # Hier folgen die restlichen PDF-Abschnitte (Regenwasser, Schmutzwasser, NS etc.)
     return pdf.output(dest='S').encode('latin-1')
 
 if kunden_name and kunden_strasse and kunden_ort:
