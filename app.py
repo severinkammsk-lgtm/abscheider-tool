@@ -120,7 +120,6 @@ st.divider()
 # --- 3. FAKTOREN & ANLAGENTYP ---
 st.header("3. Faktoren & Anlagentyp")
 
-# Bezeichnungen vollständig ausschreiben
 t1 = "Schlammfang - Benzinabscheider - Probenahmeschacht"
 t2 = "Schlammfang - Koaleszenzabscheider - Probenahmeschacht"
 t3 = "Schlammfang - Benzin- & Koaleszenzabscheider - Probenahmeschacht"
@@ -130,7 +129,6 @@ at = st.selectbox("Anlagentyp", [t1, t2, t3])
 fx = 2.0 if (a_wasch > 0 or is_wash or anz_hd > 0 or qs1_total > 0) else 1.0
 dichte = st.selectbox("Dichte der Leichtflüssigkeit (g/cm³)", ["bis 0,85", "0,85 - 0,90", "0,90 - 0,95"])
 
-# Faktoren-Maps an die neuen Bezeichnungen anpassen
 fd_map = {
     "bis 0,85": 1.0, 
     "0,85 - 0,90": {t1: 2.0, t2: 1.5, t3: 1.0}, 
@@ -138,7 +136,23 @@ fd_map = {
 }
 fd = fd_map[dichte] if dichte == "bis 0,85" else fd_map[dichte][at]
 
+# --- NEU: INFO ZU TREIBSTOFFSORTEN ---
 fame = st.selectbox("Biodiesel (FAME)", ["bis 5 %", "über 5 - 10 %", "über 10 %"])
+
+with st.expander("ℹ️ Hilfe zur Auswahl der Treibstoffsorte (Bio-Anteil)"):
+    st.markdown("""
+    Die Auswahl richtet sich nach dem Anteil an **Fettsäuremethylester (FAME)** im Kraftstoff:
+    *   **bis 5 %:** 
+        *   **Super E5 / Super Plus:** Enthält bis zu 5 % Bio-Ethanol (wirkt chemisch anders als FAME, wird hier aber oft so eingestuft).
+        *   **HVO / GTL:** Synthetische Kraftstoffe enthalten meist 0 % FAME.
+    *   **über 5 - 10 %:**
+        *   **Diesel (B7):** Standard an dt. Tankstellen (bis 7 % FAME). **Empfohlene Wahl für Standard-Tankstellen.**
+        *   **Diesel (B10):** Neuerer Diesel mit bis zu 10 % FAME.
+        *   **Super E10:** Enthält bis zu 10 % Bio-Ethanol.
+    *   **über 10 %:**
+        *   **B20 / B30 / B100:** Spezielle Fuhrpark-Kraftstoffe mit sehr hohem Biodiesel-Anteil.
+    """)
+
 ff_map = {
     "bis 5 %": {t1: 1.25, t2: 1.0, t3: 1.0}, 
     "über 5 - 10 %": {t1: 1.50, t2: 1.25, t3: 1.0}, 
@@ -154,7 +168,6 @@ ns_raw = (qr + fx * qs) * fd * ff
 ns = math.ceil(ns_raw * 100) / 100 
 standard_ns = get_next_standard_ns(ns)
 
-# Rechenformel gemäß Vorgabe als LaTeX
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
 st.success(f"### Erforderliche Nenngröße: **NS {ns:.2f}**")
 
