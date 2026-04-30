@@ -77,13 +77,12 @@ def schlagregen_zeile(label, key_suffix):
         st.markdown(f"<div style='padding-top:35px'>= <b>{res:.2f} m²</b></div>", unsafe_allow_html=True)
     return res
 
-a_tank = flaeche_zeile("Tankstelle mit PKW-Wäsche von Hand", "tank", info="Hinweis: Nur unüberdachte Bodenfläche messen.")
 a_hof = flaeche_zeile("Hof- / Freifläche", "hof")
 a_wasch = flaeche_zeile("Waschplatz (außen)", "wasch")
 a_lager = flaeche_zeile("Lager- / Abstellfläche", "lager")
 a_schlag = schlagregen_zeile("Schlagregen (Wandfläche)", "schlag")
 
-total_area = a_tank + a_hof + a_wasch + a_lager + a_schlag
+total_area = a_hof + a_wasch + a_lager + a_schlag
 qr_raw = (r_spende * total_area) / 10000
 qr = math.ceil(qr_raw * 100) / 100 
 st.info(f"Gesamtfläche: {total_area:.2f} m² | **Qr = {qr:.2f} l/s**")
