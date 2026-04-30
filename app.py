@@ -51,31 +51,34 @@ def get_next_standard_ns(val):
 st.title("📋 Abscheider-Bemessung (DIN 1999-100)")
 kunden_name = st.text_input("Name Kunde", placeholder="Vollständiger Name")
 
-# Adressfelder untereinander
-kunden_strasse = st.text_input("Straße, Hausnummer", placeholder="Musterstraße 1")
-kunden_ort = st.text_input("Postleitzahl, Ort", placeholder="12345 Musterstadt")
+# Adressfelder in zwei Zeilen
+kunden_strasse = st.text_input("Straße und Hausnummer", placeholder="Musterstraße 1")
+kunden_ort = st.text_input("PLZ und Ort", placeholder="12345 Musterstadt")
 
 st.divider()
 
 # --- 1. REGENABFLUSS ---
 st.header("1. Regenabfluss (Qr)")
 
-# KOSTRA-DWD Integration mit kombinierter Adresse
+# KOSTRA-DWD Integration mit verfeinerter Suche
 with st.expander("📍 Regenspende über Adresse ermitteln (KOSTRA-DWD)"):
     st.write("Suche den Standort, um den passenden KOSTRA-Link zu generieren.")
-    # Kombiniert Straße und Ort für eine präzise Suche
-    default_search = f"{kunden_strasse}, {kunden_ort}".strip(", ")
-    search_addr = st.text_input("Standort für KOSTRA-Abfrage", value=default_search)
     
-    if search_addr:
-        lat, lon = get_coords(search_addr)
+    # Verfeinerte Suche durch zwei separate Eingabefelder
+    search_str = st.text_input("Straße und Hausnummer (Suche)", value=kunden_strasse)
+    search_city = st.text_input("PLZ und Ort (Suche)", value=kunden_ort)
+    
+    full_address = f"{search_str}, {search_city}".strip(", ")
+    
+    if full_address:
+        lat, lon = get_coords(full_address)
         if lat:
             kostra_url = f"https://www.openko.de/maps/kostra_dwd_2020.html#15/{lat}/{lon}"
             st.success(f"Standort gefunden: {lat:.4f}, {lon:.4f}")
             st.markdown(f"[👉 **KOSTRA-Daten für diesen Standort auf OpenKO.de öffnen**]({kostra_url})")
             st.info("Hinweis: Bitte trage den dort ermittelten Wert für die Regenspende unten manuell ein.")
         else:
-            st.warning("Adresse konnte nicht genau aufgelöst werden. Bitte manuell prüfen.")
+            st.warning("Standort konnte nicht gefunden werden. Bitte Eingabe prüfen.")
 
 r_spende = st.number_input("Regenspende [l/(s * ha)]", value=300.0, format="%.1f")
 
@@ -178,7 +181,7 @@ ns_raw = (qr + fx * qs) * fd * ff
 ns = math.ceil(ns_raw * 100) / 100 
 standard_ns = get_next_standard_ns(ns)
 
-# Rechenformel als LaTeX gemäß Anweisung
+# Rechenformel als LaTeX
 st.latex(rf"NS = ({qr:.2f} + {fx} \cdot {qs:.2f}) \cdot {fd} \cdot {ff} = {ns:.2f}")
 st.success(f"### Erforderliche Nenngröße: **NS {ns:.2f}**")
 
@@ -218,7 +221,7 @@ def create_pdf():
         pdf.cell(40, 8, txt(label), border='B')
         pdf.cell(150, 8, txt(f" {val if val else '---'}"), border='B', ln=True)
     
-    # ... Restliche PDF-Logik ...
+    # Hier folgen die restlichen PDF-Abschnitte (Regenwasser, Schmutzwasser, NS etc.)
     return pdf.output(dest='S').encode('latin-1')
 
 if kunden_name and kunden_strasse and kunden_ort:
